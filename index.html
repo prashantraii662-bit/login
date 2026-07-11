@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Online Voting System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 50px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            margin: 0 auto 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .description {
+            color: #777;
+            line-height: 1.6;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-register {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-register:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-login {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-login:hover {
+            background: #f5f5f5;
+            transform: translateY(-3px);
+        }
+
+        .info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            color: #667eea;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 30px;
+        }
+
+        .info strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Logo Placeholder -->
+        <div class="logo">🏛️</div>
+
+        <!-- College Name and Title -->
+        <h1>College Voting System</h1>
+        <p class="subtitle">Democratic Student Elections</p>
+
+        <!-- Description -->
+        <p class="description">
+            Welcome to the Official Online Voting Platform for your College Elections. 
+            This secure system allows all registered students to participate in democratic 
+            elections for student body positions.
+        </p>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+            <a href="register.php" class="btn btn-register">Register</a>
+            <a href="login.php" class="btn btn-login">Login</a>
+        </div>
+
+        <!-- Information Box -->
+        <div class="info">
+            <strong>💡 Note:</strong>
+            You must register with your valid Student ID before you can vote. 
+            One vote per student - voting is permanent and cannot be changed.
+        </div>
+    </div>
+</body>
+</html>

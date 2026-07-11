@@ -1,0 +1,291 @@
+<!-- 
+QUICK START GUIDE - College Online Voting System
+================================================
+Follow these steps to get started immediately.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #3498db; margin-top: 30px; }
+        h3 { color: #555; }
+        .step { 
+            background: #ecf0f1; 
+            padding: 15px; 
+            margin: 15px 0; 
+            border-left: 4px solid #3498db; 
+            border-radius: 4px;
+        }
+        .code {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .file-list {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .file-list ul { margin: 10px 0; }
+        .file-list li { margin: 8px 0; }
+        .success { color: #27ae60; font-weight: bold; }
+        .warning { color: #e74c3c; font-weight: bold; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        table td, table th {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        table th {
+            background: #3498db;
+            color: white;
+        }
+        .button {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin: 10px 5px 10px 0;
+        }
+        .button:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 College Online Voting System - Quick Start Guide</h1>
+        
+        <h2>📋 Step-by-Step Setup</h2>
+
+        <div class="step">
+            <h3>Step 1: Extract Files</h3>
+            <p>Place the project folder in your XAMPP htdocs directory:</p>
+            <div class="code">C:\xampp\htdocs\Voting\</div>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Start XAMPP Services</h3>
+            <p>Open XAMPP Control Panel and start:</p>
+            <ul>
+                <li>✓ Apache (Required for PHP)</li>
+                <li>✓ MySQL (Required for Database)</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Create Database</h3>
+            <p><strong>Option A: Using phpMyAdmin (Recommended)</strong></p>
+            <ol>
+                <li>Go to: <span class="code">http://localhost/phpmyadmin</span></li>
+                <li>Click on "SQL" tab</li>
+                <li>Copy contents of <span class="code">database_setup.sql</span></li>
+                <li>Paste and execute</li>
+            </ol>
+            <p><strong>Option B: Using Command Line</strong></p>
+            <div class="code">mysql -u root &lt; database_setup.sql</div>
+        </div>
+
+        <div class="step">
+            <h3>Step 4: Verify Configuration</h3>
+            <p>Open <span class="code">config.php</span> and verify:</p>
+            <table>
+                <tr>
+                    <th>Setting</th>
+                    <th>Default Value</th>
+                    <th>Change If Needed</th>
+                </tr>
+                <tr>
+                    <td>Servername</td>
+                    <td>localhost</td>
+                    <td>Usually correct</td>
+                </tr>
+                <tr>
+                    <td>Username</td>
+                    <td>root</td>
+                    <td>If different</td>
+                </tr>
+                <tr>
+                    <td>Password</td>
+                    <td>(empty)</td>
+                    <td>If MySQL has password</td>
+                </tr>
+                <tr>
+                    <td>Database</td>
+                    <td>voting_system</td>
+                    <td>If different name</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="step">
+            <h3>Step 5: Launch the Application</h3>
+            <p>Open your browser and go to:</p>
+            <div class="code">http://localhost/Voting/index.html</div>
+            <p><span class="success">✓ You should see the landing page!</span></p>
+        </div>
+
+        <h2>📚 File Descriptions</h2>
+
+        <div class="file-list">
+            <p><strong>Frontend Files:</strong></p>
+            <ul>
+                <li><strong>index.html</strong> - Landing/Home page</li>
+                <li><strong>style.css</strong> - All styling (responsive design)</li>
+            </ul>
+
+            <p><strong>Backend PHP Files:</strong></p>
+            <ul>
+                <li><strong>config.php</strong> - Database connection</li>
+                <li><strong>register.php</strong> - Student registration form</li>
+                <li><strong>login.php</strong> - Student login form</li>
+                <li><strong>vote.php</strong> - Main voting page</li>
+                <li><strong>vote_success.php</strong> - Vote confirmation page</li>
+                <li><strong>already_voted.php</strong> - Already voted message</li>
+                <li><strong>logout.php</strong> - Logout and session cleanup</li>
+            </ul>
+
+            <p><strong>Database & Documentation:</strong></p>
+            <ul>
+                <li><strong>database_setup.sql</strong> - Database creation script</li>
+                <li><strong>README.md</strong> - Full documentation</li>
+                <li><strong>QUICKSTART.html</strong> - This file</li>
+            </ul>
+        </div>
+
+        <h2>🧪 Testing the System</h2>
+
+        <h3>Test Registration</h3>
+        <div class="step">
+            <ol>
+                <li>Go to: <span class="code">http://localhost/Voting/register.php</span></li>
+                <li>Fill in all fields with test data</li>
+                <li>Use Student ID like: <strong>TEST001</strong></li>
+                <li>Create a password (min 6 characters)</li>
+                <li>Click "Register"</li>
+            </ol>
+        </div>
+
+        <h3>Test Login & Voting</h3>
+        <div class="step">
+            <ol>
+                <li>Go to: <span class="code">http://localhost/Voting/login.php</span></li>
+                <li>Enter your Student ID and password</li>
+                <li>Click "Login"</li>
+                <li>Select candidates and submit vote</li>
+                <li>Try logging in again - should see "Already Voted" message</li>
+            </ol>
+        </div>
+
+        <h2>🔍 Verify Database</h2>
+
+        <p>To check if registration and votes were saved:</p>
+
+        <p><strong>View Users:</strong></p>
+        <div class="code">SELECT * FROM users;</div>
+
+        <p><strong>View Votes:</strong></p>
+        <div class="code">SELECT * FROM votes;</div>
+
+        <h2>⚙️ Configuration Notes</h2>
+
+        <div class="step">
+            <h3><span class="warning">⚠️ Common Issues & Fixes</span></h3>
+            
+            <p><strong>Issue: "Connection failed"</strong></p>
+            <ul>
+                <li>✓ Check if MySQL is running</li>
+                <li>✓ Verify database credentials in config.php</li>
+                <li>✓ Ensure database_setup.sql was executed</li>
+            </ul>
+
+            <p><strong>Issue: "Student ID already exists"</strong></p>
+            <ul>
+                <li>✓ This is correct behavior - Student IDs must be unique</li>
+                <li>✓ Try registering with a different Student ID</li>
+            </ul>
+
+            <p><strong>Issue: Blank page when visiting PHP files</strong></p>
+            <ul>
+                <li>✓ Ensure Apache is running in XAMPP</li>
+                <li>✓ Check browser console for errors (F12)</li>
+                <li>✓ Verify file paths are correct</li>
+            </ul>
+
+            <p><strong>Issue: Can't access http://localhost</strong></p>
+            <ul>
+                <li>✓ Start Apache from XAMPP Control Panel</li>
+                <li>✓ Wait 10 seconds for Apache to fully start</li>
+                <li>✓ Check if port 80 is available</li>
+            </ul>
+        </div>
+
+        <h2>🔒 Security Reminders</h2>
+
+        <div class="step">
+            <ul>
+                <li>✓ Passwords are hashed with PHP's password_hash()</li>
+                <li>✓ All SQL queries use prepared statements (prevent SQL injection)</li>
+                <li>✓ Sessions are used for secure authentication</li>
+                <li>✓ One-vote prevention with database flag</li>
+                <li>✓ Input validation and HTML escaping on all outputs</li>
+            </ul>
+        </div>
+
+        <h2>📞 Need Help?</h2>
+
+        <div class="step">
+            <p><strong>Consult the Full Documentation:</strong></p>
+            <p>Open <span class="code">README.md</span> for detailed information about:</p>
+            <ul>
+                <li>Complete project structure</li>
+                <li>Database schema details</li>
+                <li>Security implementation</li>
+                <li>Troubleshooting guide</li>
+            </ul>
+        </div>
+
+        <h2>✅ You're All Set!</h2>
+
+        <p>The system is now ready to use. Start by:</p>
+        <p>
+            <a href="http://localhost/Voting/index.html" class="button">→ Open Application</a>
+            <a href="http://localhost/phpmyadmin" class="button">→ phpMyAdmin</a>
+        </p>
+
+        <hr style="margin: 40px 0; border: none; border-top: 2px solid #ecf0f1;">
+
+        <p style="text-align: center; color: #777;">
+            <strong>College Online Voting System v1.0</strong><br>
+            Last Updated: February 10, 2026
+        </p>
+    </div>
+</body>
+</html>

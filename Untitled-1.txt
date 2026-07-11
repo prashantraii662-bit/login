@@ -1,0 +1,231 @@
+<!-- File: index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>College Online Voting System - Home</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>College Online Voting System</h1>
+            <p>A simple secure voting portal for college elections.</p>
+        </header>
+
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="register.html">Student Registration</a>
+            <a href="login.html">Student Login</a>
+        </nav>
+
+        <main>
+            <h2>Welcome</h2>
+            <p>This system allows registered students to vote once for President, Vice President, and Secretary.</p>
+            <ul>
+                <li>Register with your Student ID</li>
+                <li>Login using Student ID and Password</li>
+                <li>Each student can vote only once</li>
+            </ul>
+        </main>
+
+        <footer>
+            <p>&copy; College Voting System</p>
+        </footer>
+    </div>
+</body>
+</html>
+
+<!-- File: register.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Register - College Voting</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header><h1>Student Registration</h1></header>
+        <main>
+            <form action="register.php" method="post" id="registerForm">
+                <label>First Name
+                    <input type="text" name="first_name" required />
+                </label>
+
+                <label>Middle Name
+                    <input type="text" name="middle_name" />
+                </label>
+
+                <label>Last Name
+                    <input type="text" name="last_name" required />
+                </label>
+
+                <label>Email ID
+                    <input type="email" name="email" required />
+                </label>
+
+                <label>Student ID
+                    <input type="text" name="student_id" required />
+                </label>
+
+                <label>Date of Birth
+                    <input type="date" name="dob" required />
+                </label>
+
+                <label>Department
+                    <select name="department" required>
+                        <option value="">Select</option>
+                        <option>Computer Engineering</option>
+                        <option>Civil Engineering</option>
+                        <option>Electrical Engineering</option>
+                        <option>Mechanical Engineering</option>
+                    </select>
+                </label>
+
+                <label>Password
+                    <input type="password" name="password" required minlength="6" />
+                </label>
+
+                <div class="actions">
+                    <button type="submit">Register</button>
+                    <a href="index.html" class="button-link">Cancel</a>
+                </div>
+            </form>
+        </main>
+    </div>
+</body>
+</html>
+
+<!-- File: login.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Login - College Voting</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header><h1>Student Login</h1></header>
+        <main>
+            <form action="login.php" method="post">
+                <label>Student ID
+                    <input type="text" name="student_id" required />
+                </label>
+
+                <label>Password
+                    <input type="password" name="password" required />
+                </label>
+
+                <div class="actions">
+                    <button type="submit">Login</button>
+                    <a href="register.html" class="button-link">Register</a>
+                </div>
+            </form>
+        </main>
+    </div>
+</body>
+</html>
+
+<!-- File: vote.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Vote - College Voting</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- Note: Access control (session + has_voted) must be enforced server-side in vote.php.
+             This static page is a form; the server will check access when processing. -->
+    <div class="container">
+        <header><h1>Cast Your Vote</h1></header>
+        <main>
+            <form action="vote.php" method="post">
+                <fieldset>
+                    <legend>President</legend>
+                    <label><input type="radio" name="president" value="Balen Shah" required /> Balen Shah</label>
+                    <label><input type="radio" name="president" value="Ranju Darshana" /> Ranju Darshana</label>
+                    <label><input type="radio" name="president" value="Gagan Thapa" /> Gagan Thapa</label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Vice President</legend>
+                    <label><input type="radio" name="vice_president" value="Ravi Lamichhane" required /> Ravi Lamichhane</label>
+                    <label><input type="radio" name="vice_president" value="Sobita Gautam" /> Sobita Gautam</label>
+                    <label><input type="radio" name="vice_president" value="Kulman Ghising" /> Kulman Ghising</label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Secretary</legend>
+                    <label><input type="radio" name="secretary" value="Harka Sampang" required /> Harka Sampang</label>
+                    <label><input type="radio" name="secretary" value="Renu Dahal" /> Renu Dahal</label>
+                    <label><input type="radio" name="secretary" value="Swornim Wagle" /> Swornim Wagle</label>
+                </fieldset>
+
+                <div class="actions">
+                    <button type="submit">Submit Vote</button>
+                    <a href="logout.php" class="button-link">Logout</a>
+                </div>
+            </form>
+        </main>
+    </div>
+</body>
+</html>
+
+<!-- File: thankyou.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Thank You - College Voting</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header><h1>Thank You</h1></header>
+        <main>
+            <p>Your vote has been recorded. You cannot vote again.</p>
+            <p><a href="index.html">Return to Home</a></p>
+        </main>
+        <footer>
+            <p>&copy; College Voting System</p>
+        </footer>
+    </div>
+</body>
+</html>
+
+<!-- File: style.css -->
+/* Simple clean styling for college project */
+body {
+    font-family: Arial, sans-serif;
+    background: #f6f8fb;
+    color: #222;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 780px;
+    margin: 32px auto;
+    background: #fff;
+    padding: 18px 24px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+header h1 { margin: 0 0 8px; }
+nav { margin: 12px 0; }
+nav a { margin-right: 12px; text-decoration: none; color: #1a73e8; }
+form { display: grid; gap: 10px; }
+label { display: block; font-size: 14px; }
+input[type="text"], input[type="email"], input[type="date"], input[type="password"], select {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    margin-top: 4px;
+}
+fieldset { border: 1px solid #e1e4ea; padding: 8px; }
+.actions { margin-top: 8px; }
+button { padding: 8px 14px; background: #1a73e8; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+.button-link { margin-left: 8px; color: #444; text-decoration: none; }
+footer { margin-top: 18px; font-size: 13px; color: #666; }

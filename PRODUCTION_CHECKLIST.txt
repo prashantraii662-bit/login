@@ -1,0 +1,380 @@
+═══════════════════════════════════════════════════════════════════════════════
+            COLLEGE VOTING SYSTEM - PRE-DEPLOYMENT CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+Use this checklist before deploying to production for actual college elections.
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 1: DATABASE SETUP
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ MySQL server is installed and running
+☐ database.sql has been executed in phpMyAdmin
+☐ Tables exist (verify in phpMyAdmin):
+    ☐ users table created correctly
+    ☐ votes table created correctly
+☐ Indexes are in place for performance
+☐ Foreign key relationships established
+☐ Database backup created and stored safely
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 2: PHP FILE CONFIGURATION
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ All PHP files are in /xampp/htdocs/Voting/ directory:
+    ☐ db.php
+    ☐ index.html
+    ☐ register.php
+    ☐ login.php
+    ☐ vote.php
+    ☐ already_voted.php
+    ☐ logout.php
+
+☐ db.php credentials are correct:
+    ☐ DB_HOST: localhost
+    ☐ DB_USER: root (or your username)
+    ☐ DB_PASSWORD: empty (or your password)
+    ☐ DB_NAME: voting_system
+
+☐ db.php error display is appropriate:
+    ☐ For development: mysqli_report(MYSQLI_REPORT_ERROR) is ON
+    ☐ For production: Errors are logged, not displayed
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 3: FUNCTIONALITY TESTING
+═══════════════════════════════════════════════════════════════════════════════
+
+REGISTRATION TEST:
+☐ Can access index.html
+☐ Can click "Register" button
+☐ Registration form loads
+☐ Form validation works (try empty fields)
+☐ Duplicate email detection works
+☐ Duplicate Student ID detection works
+☐ Password matching validation works
+☐ Successful registration redirects to login
+☐ User data saved in database
+☐ Password is hashed (verify in database)
+
+LOGIN TEST:
+☐ Can click "Login" button
+☐ Login form loads
+☐ Invalid credentials show error
+☐ Correct credentials allow login
+☐ First-time voter redirected to vote.php
+☐ Already-voted user redirected to already_voted.php
+☐ Session created successfully
+
+VOTING TEST:
+☐ Can select Presidential candidate
+☐ Can select Vice Presidential candidate
+☐ Can select Secretary candidate
+☐ Cannot submit without all three selections
+☐ Error message shown if incomplete
+☐ Vote submission works
+☐ has_voted flag set to 1 in database
+☐ Vote recorded in votes table with all three selections
+☐ Redirect to already_voted.php works
+
+DOUBLE-VOTING PREVENTION TEST:
+☐ Log out and log back in with same account
+☐ Automatically redirected to already_voted.php
+☐ Cannot re-vote
+☐ Confirmation page shows properly
+
+LOGOUT TEST:
+☐ Session destroyed on logout
+☐ Redirected to index.html
+☐ Cannot access vote.php after logout (redirects to login)
+☐ Cannot access already_voted.php after logout (redirects to login)
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 4: SECURITY VERIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+PASSWORD SECURITY:
+☐ Passwords are hashed with password_hash()
+☐ Hashed passwords stored in database (not plain text)
+☐ password_verify() used for authentication
+☐ Minimum 6 characters enforced
+☐ Confirm password matching works
+
+SQL INJECTION PREVENTION:
+☐ All database queries use prepared statements
+☐ bind_param() used for all variables
+☐ No direct SQL concatenation anywhere
+☐ Test with SQL injection attempts (e.g., ' OR '1'='1)
+
+SESSION SECURITY:
+☐ session_start() called at top of protected pages
+☐ Sessions contain: student_id, user_id, user_name
+☐ Unset session variables after logout
+☐ Session timeout configured (optional)
+
+INPUT VALIDATION:
+☐ All inputs are trimmed (trim())
+☐ Email validation works (filter_var)
+☐ HTML special characters escaped (htmlspecialchars)
+☐ Form data sanitized before database
+
+CROSS-SITE SCRIPTING (XSS) PREVENTION:
+☐ User inputs escaped when displayed
+☐ htmlspecialchars() used in all outputs
+☐ No direct echo of $_POST or $_GET variables
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 5: DATA INTEGRITY
+═══════════════════════════════════════════════════════════════════════════════
+
+DATABASE CONSTRAINTS:
+☐ Email is UNIQUE
+☐ Student ID is UNIQUE
+☐ Foreign keys link votes to users
+☐ has_voted defaults to 0
+☐ Timestamps auto-generated
+
+DATA VALIDATION:
+☐ Email format validated
+☐ Required fields cannot be empty
+☐ Student ID cannot be too short
+☐ Department must be from approved list
+☐ Voting choices must be from approved list
+
+USER DATA ACCURACY:
+☐ All registration fields stored correctly
+☐ No data truncation observed
+☐ Special characters handled properly
+☐ UTF-8 encoding works correctly
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 6: RESPONSIVE DESIGN
+═══════════════════════════════════════════════════════════════════════════════
+
+DESKTOP (1920px+):
+☐ Page layouts correctly
+☐ Forms are properly sized
+☐ Buttons are clickable
+☐ Text is readable
+☐ No horizontal scrolling
+
+TABLET (768px - 1024px):
+☐ Page layouts correctly
+☐ Forms stack vertically
+☐ Buttons remain accessible
+☐ Text is readable
+☐ No horizontal scrolling
+
+MOBILE (320px - 767px):
+☐ Page layouts correctly
+☐ Forms are readable
+☐ Buttons are easily tappable (min 44x44px)
+☐ Text is readable without zooming
+☐ No horizontal scrolling
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 7: USER INTERFACE & UX
+═══════════════════════════════════════════════════════════════════════════════
+
+VISUAL DESIGN:
+☐ Gradient design consistent across pages
+☐ Colors are professional and accessible
+☐ Font sizes are appropriate
+☐ Spacing is consistent
+☐ Buttons are clearly identifiable
+
+USER FEEDBACK:
+☐ Error messages are clear
+☐ Success messages are displayed
+☐ Loading states are visible
+☐ Links are properly highlighted
+☐ Hover effects work on buttons
+
+NAVIGATION:
+☐ Back buttons work correctly
+☐ Cancel buttons work correctly
+☐ Logo/home links return to homepage
+☐ Logout clears session and redirects
+☐ No broken links
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 8: PERFORMANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+DATABASE PERFORMANCE:
+☐ Indexes created on frequently queried columns
+☐ Query execution is fast
+☐ No N+1 query problems
+☐ Database connection is stable
+
+PAGE LOAD TIMES:
+☐ index.html loads quickly
+☐ register.php loads quickly
+☐ login.php loads quickly
+☐ vote.php loads quickly
+☐ already_voted.php loads quickly
+
+RESOURCE USAGE:
+☐ CSS is minimal and efficient
+☐ No render-blocking resources
+☐ JavaScript is minimal
+☐ Images (if any) are optimized
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 9: BROWSERS & COMPATIBILITY
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ Chrome/Chromium - tested and working
+☐ Firefox - tested and working
+☐ Safari - tested and working
+☐ Edge - tested and working
+☐ Mobile browsers - tested and working
+☐ CSS Grid/Flexbox supported
+☐ Async/await not used (for older browser support)
+☐ ES5 JavaScript syntax used (not ES6+)
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 10: PRODUCTION SECURITY
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE GOING LIVE:
+☐ Change default database password in db.php
+☐ If accessible over internet: Enable HTTPS (SSL certificate)
+☐ File permissions set to 644 (readable by web server)
+☐ Directory permissions set to 755
+☐ Error reporting disabled (not showing errors to users)
+☐ Errors logged to file instead
+☐ PHP display_errors set to Off
+☐ PHP log_errors set to On
+☐ Backup automated and tested
+☐ No debug code left in files
+
+SERVER SECURITY:
+☐ MySQL runs on localhost only
+☐ MySQL has strong password
+☐ Database user has minimal required permissions
+☐ Unnecessary ports are closed
+☐ Server has firewall configured
+☐ Regular security updates installed
+☐ Access logs are monitored
+☐ Backup is stored offsite
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 11: BACKUP & RECOVERY
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ Database backup created before deployment
+☐ Backup stored in multiple locations
+☐ Backup restoration tested and works
+☐ Backup schedule established
+☐ Backup retention policy defined
+☐ File backups also created
+☐ Recovery procedure documented
+☐ Contact person identified for emergencies
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 12: DOCUMENTATION
+═══════════════════════════════════════════════════════════════════════════════
+
+FOR ADMINISTRATORS:
+☐ SETUP_GUIDE.md exists and is complete
+☐ Database schema documented
+☐ File structure documented
+☐ Admin credentials stored securely
+☐ Escalation procedures documented
+
+FOR USERS:
+☐ Landing page is clear
+☐ Registration instructions are simple
+☐ Login instructions are clear
+☐ Error messages guide users to fix issues
+☐ Help contact information provided
+
+FOR DEVELOPERS:
+☐ Code comments are adequate
+☐ Function purposes are clear
+☐ Database queries are readable
+☐ Security practices documented
+☐ Modification instructions provided
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 13: REGULATORY & COMPLIANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+VOTING RULES:
+☐ One vote per student enforced
+☐ Vote cannot be changed after submission
+☐ Student cannot see other's votes
+☐ Timestamp recorded for audit trail
+☐ Votes properly linked to student IDs
+☐ Voting process is documented
+
+STUDENT DATA PROTECTION:
+☐ Passwords properly secured
+☐ Personal data stored securely
+☐ No unnecessary data collection
+☐ Privacy policy available (optional)
+☐ GDPR compliance (if applicable)
+☐ Data retention policy defined
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 14: COMMON ISSUES - VERIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ MySQL not showing connection errors
+☐ Session variables persist correctly
+☐ Timestamps are in correct timezone
+☐ File uploads not possible (if not intended)
+☐ SQL queries execute without timeout
+☐ Character encoding handles special names
+☐ Decimal numbers (if any) display correctly
+☐ Large form submissions handled
+☐ Concurrent user access works
+☐ Browser back button doesn't reveal sensitive data
+
+═══════════════════════════════════════════════════════════════════════════════
+SECTION 15: FINAL CHECKS
+═══════════════════════════════════════════════════════════════════════════════
+
+☐ System tested with 10+ test users
+☐ Database has correct sample data
+☐ No test accounts left in production
+☐ All temporary files deleted
+☐ Clean database backup created
+☐ System documentation complete
+☐ Admin/staff trained on system
+☐ Support procedures in place
+☐ Emergency contacts identified
+☐ Deployment date scheduled
+☐ Rollback plan documented
+
+═══════════════════════════════════════════════════════════════════════════════
+DEPLOYMENT SIGN-OFF
+═══════════════════════════════════════════════════════════════════════════════
+
+System Name: College Online Voting System
+Version: 1.0
+Date Prepared: ________________
+Submitted By: ________________
+Approved By: ________________
+Production Deployment Date: ________________
+
+All checklist items completed: ☐ YES  ☐ NO
+
+If any item is unchecked, address it before deployment.
+
+═══════════════════════════════════════════════════════════════════════════════
+NOTES & ADDITIONAL INFORMATION
+═══════════════════════════════════════════════════════════════════════════════
+
+_________________________________________________________________________
+_________________________________________________________________________
+_________________________________________________________________________
+_________________________________________________________________________
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Good luck with your college elections! 🗳️
+
+Make sure every step is complete before going live.
+
+═══════════════════════════════════════════════════════════════════════════════
