@@ -14,6 +14,6 @@ $auditStmt->execute();
 $auditStmt->close();
 
 destroyAppSession();
-header('Location: index.php');
+header('Location: login.php');
 exit();
 ?>

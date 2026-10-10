@@ -31,18 +31,34 @@ separate REST API.
 - `index.html` is the public landing page and links to the existing student
   registration and shared login forms. `index.php` routes an existing signed-in
   user to the dashboard for their session role.
-- `login.php` authenticates both student and administrator accounts by Student
-  ID and password. Successful sign-ins go to `dashboard.php` for students and
-  `admin.php` for administrators. `admin_login.php` remains as a compatibility
-  URL that redirects to the shared login page.
+- `login.php` contains separate Student and Admin tabs and forms on the same
+  page. The student form accepts Student ID or email; the admin form accepts
+  the administrator account's Student ID or email (the existing schema has no
+  username column). Each form queries only its own `users.role` value and
+  verifies the stored password hash. Successful sign-ins go to `dashboard.php`
+  for students and `admin.php` for administrators. `admin_login.php` remains
+  as a compatibility URL that redirects to the shared login page.
 - Protected pages continue to check current database role, verification, and
   account activation on the server. Administrator operations remain restricted
   to administrator sessions.
 - `includes/navigation.php`, `includes/navigation.css`, and
   `includes/navigation.js` provide the common role-aware sidebar, page heading,
-  user/profile summary, and responsive mobile menu used by authenticated pages.
-  Administrator links are rendered only for administrator sessions; the
-  corresponding admin pages still enforce authorization independently.
+  user/profile summary, and responsive navigation used by authenticated pages.
+  The sidebar can be collapsed on desktop and opens as a dismissible drawer on
+  mobile; its collapsed preference lasts for the current browser tab. Admin
+  student management shows live total, active, inactive, and last-30-day
+  registration counts; prepared search across names, Student IDs, and emails;
+  account-status filters; whitelisted sort orders; and server-side pagination.
+  Student details omit passwords and ballot choices. Existing student add,
+  edit, eligibility verification, and activate/deactivate actions use CSRF
+  protection, hashed initial passwords, and audit logging. Deactivation blocks
+  sign-in without deleting participation history. Admin election and candidate
+  lists also support server-side search/filtering and pagination. Administrator
+  links are rendered only for administrator sessions; the corresponding admin
+  pages still enforce authorization independently.
+- Student and administrator accounts have role-scoped notifications and an
+  authenticated, CSRF-protected mark-as-read action. Protected page responses
+  use no-store cache headers to avoid reusing dashboard content after logout.
 - Student election, candidate, and voting navigation points to the existing
   dashboard sections and voting/candidate pages; results, notifications,
   profile, and logout reuse the existing application workflows.

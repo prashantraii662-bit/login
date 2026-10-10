@@ -26,6 +26,7 @@ function requestString($source, $key) {
 
 function requireStudent() {
     startAppSession();
+    preventProtectedPageCaching();
     if (($_SESSION['role'] ?? '') !== 'student' || empty($_SESSION['user_id']) || !userRoleIsCurrent('student')) {
         destroyAppSession();
         header('Location: login.php');
@@ -35,21 +36,28 @@ function requireStudent() {
 
 function requireAdmin() {
     startAppSession();
+    preventProtectedPageCaching();
     if (($_SESSION['role'] ?? '') !== 'admin' || empty($_SESSION['user_id']) || !userRoleIsCurrent('admin')) {
         destroyAppSession();
-        header('Location: admin_login.php');
+        header('Location: login.php');
         exit();
     }
 }
 
 function requireAuthenticatedUser() {
     startAppSession();
+    preventProtectedPageCaching();
     $role = $_SESSION['role'] ?? '';
     if (!in_array($role, ['student', 'admin'], true) || empty($_SESSION['user_id']) || !userRoleIsCurrent($role)) {
         destroyAppSession();
         header('Location: login.php');
         exit();
     }
+}
+
+function preventProtectedPageCaching() {
+    header('Cache-Control: no-store, private');
+    header('Pragma: no-cache');
 }
 
 function userRoleIsCurrent($role) {

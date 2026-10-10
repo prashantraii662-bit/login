@@ -22,42 +22,47 @@ function renderAuthenticatedNavigation($pageTitle, $description, $activeItem) {
 
     if ($isAdmin) {
         $navigationItems = [
-            ['key' => 'admin-dashboard', 'label' => 'Admin Dashboard', 'icon' => '▦', 'url' => 'admin.php'],
-            ['key' => 'students', 'label' => 'Student Management', 'icon' => '♙', 'url' => 'admin.php?nav=students#student-management'],
-            ['key' => 'candidates', 'label' => 'Candidate Management', 'icon' => '◇', 'url' => 'admin.php?nav=candidates#candidate-management'],
-            ['key' => 'elections', 'label' => 'Election Management', 'icon' => '◷', 'url' => 'admin.php?nav=elections#elections'],
-            ['key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
-            ['key' => 'reports', 'label' => 'Reports', 'icon' => '▥', 'url' => 'results.php?nav=reports#reports'],
-            ['key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => $notificationsUrl],
-            ['key' => 'audit', 'label' => 'Audit Logs', 'icon' => '≡', 'url' => 'admin.php?nav=audit#audit-logs'],
-            ['key' => 'settings', 'label' => 'Settings', 'icon' => '⚙', 'url' => 'admin.php?nav=settings#settings']
+            ['group' => 'Main', 'key' => 'admin-dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'admin.php'],
+            ['group' => 'Election management', 'key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'admin.php?nav=elections#elections'],
+            ['group' => 'Election management', 'key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'admin.php?nav=candidates#candidate-management'],
+            ['group' => 'User management', 'key' => 'students', 'label' => 'Students', 'icon' => '♙', 'url' => 'admin.php?nav=students#student-management'],
+            ['group' => 'Results and reports', 'key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
+            ['group' => 'Results and reports', 'key' => 'reports', 'label' => 'Reports', 'icon' => '▥', 'url' => 'results.php?nav=reports#reports'],
+            ['group' => 'System', 'key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => $notificationsUrl],
+            ['group' => 'System', 'key' => 'audit', 'label' => 'Audit logs', 'icon' => '≡', 'url' => 'admin.php?nav=audit#audit-logs'],
+            ['group' => 'System', 'key' => 'settings', 'label' => 'Settings', 'icon' => '⚙', 'url' => 'admin.php?nav=settings#settings']
         ];
     } else {
         $navigationItems = [
-            ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'dashboard.php'],
-            ['key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'dashboard.php?nav=elections#elections'],
-            ['key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'dashboard.php?nav=candidates#elections'],
-            ['key' => 'vote', 'label' => 'Cast Vote', 'icon' => '✓', 'url' => 'dashboard.php?nav=vote#elections'],
-            ['key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
-            ['key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => 'dashboard.php?nav=notifications#notifications'],
-            ['key' => 'profile', 'label' => 'Profile', 'icon' => '♙', 'url' => 'dashboard.php?nav=profile#profile']
+            ['group' => 'Main', 'key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'dashboard.php'],
+            ['group' => 'Elections', 'key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'dashboard.php?nav=elections#elections'],
+            ['group' => 'Elections', 'key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'dashboard.php?nav=candidates#elections'],
+            ['group' => 'Elections', 'key' => 'vote', 'label' => 'Cast Vote', 'icon' => '✓', 'url' => 'dashboard.php?nav=vote#elections'],
+            ['group' => 'Account', 'key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
+            ['group' => 'Account', 'key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => 'dashboard.php?nav=notifications#notifications'],
+            ['group' => 'Account', 'key' => 'profile', 'label' => 'Profile', 'icon' => '♙', 'url' => 'dashboard.php?nav=profile#profile']
         ];
     }
 
     echo '<div class="app-backdrop" data-nav-close></div>';
     echo '<aside class="app-sidebar" id="app-sidebar" aria-label="Main navigation">';
-    echo '<a class="app-brand" href="' . ($isAdmin ? 'admin.php' : 'dashboard.php') . '"><span class="app-brand-mark" aria-hidden="true">V</span><span><strong>CampusVote</strong><small>College elections</small></span></a>';
-    echo '<div class="app-nav-label">WORKSPACE</div><nav class="app-nav">';
+    echo '<a class="app-brand" href="' . ($isAdmin ? 'admin.php' : 'dashboard.php') . '"><span class="app-brand-mark" aria-hidden="true">V</span><span class="app-brand-copy"><strong>CampusVote</strong><small>College elections</small></span></a>';
+    echo '<nav class="app-nav">';
+    $currentGroup = '';
     foreach ($navigationItems as $item) {
+        if ($item['group'] !== $currentGroup) {
+            $currentGroup = $item['group'];
+            echo '<div class="app-nav-label">' . htmlspecialchars($currentGroup, ENT_QUOTES, 'UTF-8') . '</div>';
+        }
         $isActive = $activeItem === $item['key'];
-        echo '<a class="app-nav-link' . ($isActive ? ' is-active' : '') . '" href="' . htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8') . '"' . ($isActive ? ' aria-current="page"' : '') . '>';
+        echo '<a class="app-nav-link' . ($isActive ? ' is-active' : '') . '" href="' . htmlspecialchars($item['url'], ENT_QUOTES, 'UTF-8') . '" title="' . htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') . '"' . ($isActive ? ' aria-current="page"' : '') . '>';
         echo '<span class="app-nav-icon" aria-hidden="true">' . htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8') . '</span>';
         echo '<span>' . htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') . '</span></a>';
     }
     echo '</nav><div class="app-sidebar-bottom"><a class="app-nav-link app-logout" href="' . htmlspecialchars($logoutUrl, ENT_QUOTES, 'UTF-8') . '"><span class="app-nav-icon" aria-hidden="true">↪</span><span>Logout</span></a></div></aside>';
 
     echo '<div class="app-shell"><div class="app-topbar">';
-    echo '<button class="app-menu-toggle" type="button" aria-label="Open navigation menu" aria-controls="app-sidebar" aria-expanded="false" data-nav-toggle><span></span><span></span><span></span></button>';
+    echo '<button class="app-menu-toggle" type="button" aria-label="Collapse navigation sidebar" aria-controls="app-sidebar" aria-expanded="true" data-nav-toggle><span></span><span></span><span></span></button>';
     echo '<div class="app-heading"><h1>' . htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') . '</h1><p>' . htmlspecialchars($description, ENT_QUOTES, 'UTF-8') . '</p></div>';
     echo '<a class="app-notification-link" href="' . htmlspecialchars($notificationsUrl, ENT_QUOTES, 'UTF-8') . '" aria-label="Notifications, ' . $unreadCount . ' unread"><span aria-hidden="true">♧</span>';
     if ($unreadCount > 0) {
