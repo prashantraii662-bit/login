@@ -1,37 +1,17 @@
 <?php
-session_start();
+require_once 'auth.php';
+startAppSession();
 // Include database configuration
 require_once 'config.php';
+require_once 'includes/navigation.php';
 
 // Check if user is logged in
-if (!isset($_SESSION['student_id'])) {
-    header("Location: login.php");
+requireStudent();
+if (empty($_SESSION['vote_success_election'])) {
+    header('Location: vote.php');
     exit();
 }
-
-// Fetch vote results
-$results = [
-    'president' => [],
-    'vice_president' => [],
-    'secretary' => []
-];
-
-$query = "SELECT president, vice_president, secretary FROM votes";
-$result = $conn->query($query);
-
-while ($row = $result->fetch_assoc()) {
-    $results['president'][] = $row['president'];
-    $results['vice_president'][] = $row['vice_president'];
-    $results['secretary'][] = $row['secretary'];
-}
-
-function count_votes($votes) {
-    return array_count_values($votes);
-}
-
-$president_counts = count_votes($results['president']);
-$vice_president_counts = count_votes($results['vice_president']);
-$secretary_counts = count_votes($results['secretary']);
+unset($_SESSION['vote_success_election']);
 ?>
 
 <!DOCTYPE html>
@@ -41,16 +21,10 @@ $secretary_counts = count_votes($results['secretary']);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vote Success - Online Voting System</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="includes/navigation.css">
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1 style="margin: 0; color: white;">Online Voting System</h1>
-            <nav>
-                <a href="logout.php">Logout</a>
-            </nav>
-        </div>
-    </header>
+    <?php renderAuthenticatedNavigation('Ballot submitted', 'Your participation has been recorded for this election.', 'vote'); ?>
 
     <main>
         <div class="content-wrapper" style="text-align: center;">
@@ -69,39 +43,12 @@ $secretary_counts = count_votes($results['secretary']);
             </div>
 
             <div style="margin-top: 30px;">
-                <a href="logout.php" class="btn btn-secondary btn-large">Logout</a>
+                <a href="dashboard.php" class="btn btn-secondary btn-large">Return to Dashboard</a>
             </div>
 
-            <div style="margin-top: 50px; text-align: left;">
-                <h2>Election Results Dashboard</h2>
-                
-                <h3>President</h3>
-                <ul>
-                    <?php foreach ($president_counts as $candidate => $count): ?>
-                        <li><?php echo htmlspecialchars($candidate); ?>: <?php echo $count; ?> votes</li>
-                    <?php endforeach; ?>
-                </ul>
-
-                <h3>Vice President</h3>
-                <ul>
-                    <?php foreach ($vice_president_counts as $candidate => $count): ?>
-                        <li><?php echo htmlspecialchars($candidate); ?>: <?php echo $count; ?> votes</li>
-                    <?php endforeach; ?>
-                </ul>
-
-                <h3>Secretary</h3>
-                <ul>
-                    <?php foreach ($secretary_counts as $candidate => $count): ?>
-                        <li><?php echo htmlspecialchars($candidate); ?>: <?php echo $count; ?> votes</li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2026 College Online Voting System. All rights reserved.</p>
-    </footer>
+    <?php renderAuthenticatedNavigationEnd(); ?>
 </body>
 </html>
-

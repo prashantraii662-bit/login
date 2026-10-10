@@ -1,41 +1,56 @@
 <?php
-session_start();
+require_once 'auth.php';
+startAppSession();
 require_once 'db.php';
 
 // Initialize variables
 $errors = [];
 $success = false;
+$departments = [
+    'Computer Engineering',
+    'Civil Engineering',
+    'Electrical Engineering',
+    'Mechanical Engineering'
+];
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? null)) {
+        $errors[] = 'Your session expired. Refresh the page and try again.';
+    }
     // Collect and sanitize input
-    $first_name = trim($_POST['first_name'] ?? '');
-    $middle_name = trim($_POST['middle_name'] ?? '');
-    $last_name = trim($_POST['last_name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $student_id = trim($_POST['student_id'] ?? '');
-    $dob = trim($_POST['dob'] ?? '');
-    $department = trim($_POST['department'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
+    $first_name = trim(requestString($_POST, 'first_name'));
+    $middle_name = trim(requestString($_POST, 'middle_name'));
+    $last_name = trim(requestString($_POST, 'last_name'));
+    $email = trim(requestString($_POST, 'email'));
+    $student_id = trim(requestString($_POST, 'student_id'));
+    $department = trim(requestString($_POST, 'department'));
+    $password = requestString($_POST, 'password');
+    $confirm_password = requestString($_POST, 'confirm_password');
 
     // Validation
     if (empty($first_name)) {
         $errors[] = 'First Name is required';
+    } elseif (strlen($first_name) > 50) {
+        $errors[] = 'First Name must be 50 characters or fewer';
     }
     if (empty($last_name)) {
         $errors[] = 'Last Name is required';
+    } elseif (strlen($last_name) > 50) {
+        $errors[] = 'Last Name must be 50 characters or fewer';
+    }
+    if (strlen($middle_name) > 50) {
+        $errors[] = 'Middle Name must be 50 characters or fewer';
     }
     if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Valid Email ID is required';
+    } elseif (strlen($email) > 100) {
+        $errors[] = 'Email address must be 100 characters or fewer';
     }
-    if (empty($student_id) || strlen($student_id) < 3) {
-        $errors[] = 'Valid Student ID is required (minimum 3 characters)';
+    if (empty($student_id) || strlen($student_id) < 3 || strlen($student_id) > 20) {
+        $errors[] = 'Valid Student ID is required (3 to 20 characters)';
     }
-    if (empty($dob)) {
-        $errors[] = 'Date of Birth is required';
-    }
-    if (empty($department)) {
+    if (!in_array($department, $departments, true)) {
         $errors[] = 'Department must be selected';
     }
     if (empty($password) || strlen($password) < 6) {
@@ -76,8 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         
         $stmt = $conn->prepare(
-            'INSERT INTO users (first_name, middle_name, last_name, email, student_id, department, password, has_voted) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
+            'INSERT INTO users (first_name, middle_name, last_name, email, student_id, department, password, has_voted, role, is_verified) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, \'student\', 0)'
         );
         
         $stmt->bind_param(
@@ -91,24 +106,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hashed_password
         );
         
-        if ($stmt->execute()) {
+        try {
+            $stmt->execute();
             $success = true;
             // Redirect to login after successful registration
             header('Location: login.php?success=Registration successful! Please login.');
             exit();
-        } else {
-            $errors[] = 'Error during registration. Please try again.';
+        } catch (mysqli_sql_exception $exception) {
+            if ($exception->getCode() !== 1062) {
+                throw $exception;
+            }
+            $errors[] = 'Student ID or Email already registered. Please login or use different details.';
         }
         $stmt->close();
     }
 }
 
-$departments = [
-    'Computer Engineering',
-    'Civil Engineering',
-    'Electrical Engineering',
-    'Mechanical Engineering'
-];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -310,41 +323,38 @@ $departments = [
 
         <!-- Registration Form -->
         <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <!-- Name Fields -->
             <div class="form-row">
                 <div class="form-group">
                     <label for="first_name">First Name *</label>
-                    <input type="text" id="first_name" name="first_name" value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>" required>
+                    <input type="text" id="first_name" name="first_name" maxlength="50" value="<?php echo htmlspecialchars(requestString($_POST, 'first_name'), ENT_QUOTES, 'UTF-8'); ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="middle_name">Middle Name</label>
-                    <input type="text" id="middle_name" name="middle_name" value="<?php echo htmlspecialchars($_POST['middle_name'] ?? ''); ?>">
+                    <input type="text" id="middle_name" name="middle_name" maxlength="50" value="<?php echo htmlspecialchars(requestString($_POST, 'middle_name'), ENT_QUOTES, 'UTF-8'); ?>">
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="last_name">Last Name *</label>
-                <input type="text" id="last_name" name="last_name" value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>" required>
+                <input type="text" id="last_name" name="last_name" maxlength="50" value="<?php echo htmlspecialchars(requestString($_POST, 'last_name'), ENT_QUOTES, 'UTF-8'); ?>" required>
             </div>
 
             <!-- Email and Student ID -->
             <div class="form-row">
                 <div class="form-group">
                     <label for="email">Email ID *</label>
-                    <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
+                    <input type="email" id="email" name="email" maxlength="100" value="<?php echo htmlspecialchars(requestString($_POST, 'email'), ENT_QUOTES, 'UTF-8'); ?>" required>
                 </div>
                 <div class="form-group">
                     <label for="student_id">Student ID *</label>
-                    <input type="text" id="student_id" name="student_id" value="<?php echo htmlspecialchars($_POST['student_id'] ?? ''); ?>" placeholder="e.g., STU-2026-001" required>
+                    <input type="text" id="student_id" name="student_id" maxlength="20" value="<?php echo htmlspecialchars(requestString($_POST, 'student_id'), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., STU-2026-001" required>
                 </div>
             </div>
 
-            <!-- Date of Birth and Department -->
+            <!-- Department -->
             <div class="form-row">
-                <div class="form-group">
-                    <label for="dob">Date of Birth *</label>
-                    <input type="date" id="dob" name="dob" value="<?php echo htmlspecialchars($_POST['dob'] ?? ''); ?>" required>
-                </div>
                 <div class="form-group">
                     <label for="department">Department *</label>
                     <select id="department" name="department" required>
@@ -385,4 +395,3 @@ $departments = [
     </div>
 </body>
 </html>
-

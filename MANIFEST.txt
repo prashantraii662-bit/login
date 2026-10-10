@@ -2,6 +2,9 @@
   COLLEGE ONLINE VOTING SYSTEM - COMPLETE PROJECT MANIFEST
 ================================================================================
 
+NOTICE: This is a historical manifest. Its route, schema, and setup details may
+be obsolete. Follow README.md for current instructions and application behavior.
+
 PROJECT CREATED: February 10, 2026
 LOCATION: C:\xampp\htdocs\Voting\
 STATUS: ✅ FULLY COMPLETE AND PRODUCTION-READY

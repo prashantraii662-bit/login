@@ -1,4 +1,7 @@
-/* 
+/*
+   HISTORICAL DOCUMENT - not a current deployment checklist.
+   Follow README.md for current setup, migrations, and administrator onboarding.
+
    INSTALLATION & DEPLOYMENT CHECKLIST
    College Online Voting System v1.0
 */

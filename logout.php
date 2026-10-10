@@ -1,9 +1,8 @@
 <?php
-session_start();
-session_destroy();
+require_once 'auth.php';
+destroyAppSession();
 header('Location: index.html');
 exit();
 
 ?>
-
 

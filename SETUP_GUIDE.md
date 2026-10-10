@@ -1,5 +1,8 @@
 # College Online Voting System - COMPLETE SETUP GUIDE
 
+> Historical setup guide: it predates current migrations and authentication
+> requirements. Follow [README.md](README.md) instead.
+
 ## 📋 Project Overview
 
 This is a complete, production-ready College Online Voting System built with:

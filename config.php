@@ -1,21 +1,12 @@
 <?php
-// Database configuration for the voting application
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "voting_system";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+require_once __DIR__ . '/db.php';
 
 function sanitize($data) {
     return htmlspecialchars(stripslashes(trim($data)));
 }
 
 function isLoggedIn() {
-    return isset($_SESSION['student_id']);
+    return ($_SESSION['role'] ?? '') === 'student' && !empty($_SESSION['user_id']);
 }
 
 function hasVoted($student_id) {

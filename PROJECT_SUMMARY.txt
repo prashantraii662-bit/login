@@ -1,4 +1,6 @@
 /* ============================================================
+   HISTORICAL SUMMARY - use README.md for current behavior and setup.
+   Legacy schema and command examples below may be unsafe or obsolete.
    COLLEGE ONLINE VOTING SYSTEM - PROJECT SUMMARY
    ============================================================ */
 

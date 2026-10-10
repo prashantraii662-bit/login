@@ -1,25 +1,12 @@
 <?php
-session_start();
+require_once 'auth.php';
+startAppSession();
 require_once 'db.php';
 
-// If already logged in, redirect to appropriate page
-if (isset($_SESSION['student_id'])) {
-    // Check if already voted
-    $stmt = $conn->prepare('SELECT has_voted FROM users WHERE student_id = ?');
-    $stmt->bind_param('s', $_SESSION['student_id']);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        if ($user['has_voted'] == 1) {
-            header('Location: already_voted.php');
-        } else {
-            header('Location: vote.php');
-        }
-        exit();
-    }
-    $stmt->close();
+// If already logged in, send the user to the dashboard for their role.
+if (!empty($_SESSION['user_id']) && in_array($_SESSION['role'] ?? '', ['student', 'admin'], true)) {
+    header('Location: ' . (($_SESSION['role'] ?? '') === 'admin' ? 'admin.php' : 'dashboard.php'));
+    exit();
 }
 
 $errors = [];
@@ -27,13 +14,16 @@ $success_message = '';
 
 // Check for success message from registration
 if (isset($_GET['success'])) {
-    $success_message = htmlspecialchars($_GET['success']);
+    $success_message = htmlspecialchars(requestString($_GET, 'success'), ENT_QUOTES, 'UTF-8');
 }
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $student_id = trim($_POST['student_id'] ?? '');
-    $password = $_POST['password'] ?? '';
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? null)) {
+        $errors[] = 'Your session expired. Refresh the page and try again.';
+    }
+    $student_id = trim(requestString($_POST, 'student_id'));
+    $password = requestString($_POST, 'password');
 
     // Validation
     if (empty($student_id)) {
@@ -45,33 +35,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Check credentials
     if (empty($errors)) {
-        $stmt = $conn->prepare('SELECT id, first_name, last_name, password, has_voted FROM users WHERE student_id = ?');
+        $stmt = $conn->prepare('SELECT id, first_name, last_name, student_id, password, has_voted, role, is_verified, is_active FROM users WHERE student_id = ?');
         $stmt->bind_param('s', $student_id);
         $stmt->execute();
         $result = $stmt->get_result();
 
-        if ($result->num_rows > 0) {
-            $user = $result->fetch_assoc();
-            
-            // Verify password
-            if (password_verify($password, $user['password'])) {
-                // Set session variables
-                $_SESSION['student_id'] = $student_id;
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
-                
-                // Redirect based on voting status
-                if ($user['has_voted'] == 1) {
-                    header('Location: already_voted.php');
-                } else {
-                    header('Location: vote.php');
-                }
-                exit();
-            } else {
-                $errors[] = 'Invalid student ID or password';
-            }
+        $user = $result->fetch_assoc();
+        if (!$user || !password_verify($password, $user['password'])) {
+            $errors[] = 'Invalid username/email or password.';
+        } elseif (!(int) $user['is_active']) {
+            $errors[] = 'Your account is currently inactive. Please contact the administrator.';
+        } elseif (!(int) $user['is_verified']) {
+            $errors[] = 'Your account is awaiting administrator verification before you can log in.';
+        } elseif (!in_array($user['role'], ['student', 'admin'], true)) {
+            $errors[] = 'This account cannot sign in.';
         } else {
-            $errors[] = 'Student ID not found. Please register first.';
+            establishUserSession($user, $user['role']);
+            if ($user['role'] === 'admin') {
+                $actorId = (int) $user['id'];
+                $auditStmt = $conn->prepare(
+                    "INSERT INTO admin_audit_log (actor_user_id, action, entity_type, entity_id)
+                     VALUES (?, 'admin_login', 'user', ?)"
+                );
+                $auditStmt->bind_param('ii', $actorId, $actorId);
+                $auditStmt->execute();
+                $auditStmt->close();
+                header('Location: admin.php');
+            } else {
+                header('Location: dashboard.php');
+            }
+            exit();
         }
         $stmt->close();
     }
@@ -259,14 +252,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 20px;
             line-height: 1.5;
         }
+
+        .password-control { position: relative; }
+        .password-control input { padding-right: 62px; }
+        .password-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); border: 0; background: transparent; color: #586de0; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="container">
         <a href="index.html" class="back-link">← Back to Home</a>
 
-        <h1>Student Login</h1>
-        <p class="form-subtitle">Enter your credentials to vote</p>
+        <h1>Online Voting System</h1>
+        <p class="form-subtitle">Sign in with your Student ID to continue</p>
 
         <!-- Success Message -->
         <?php if (!empty($success_message)): ?>
@@ -288,20 +285,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Login Form -->
         <form method="POST" action="">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <div class="form-group">
                 <label for="student_id">Student ID *</label>
-                <input type="text" id="student_id" name="student_id" value="<?php echo htmlspecialchars($_POST['student_id'] ?? ''); ?>" placeholder="e.g., STU-2026-001" required autofocus>
+                <input type="text" id="student_id" name="student_id" value="<?php echo htmlspecialchars(requestString($_POST, 'student_id'), ENT_QUOTES, 'UTF-8'); ?>" placeholder="e.g., STU-2026-001" required autofocus>
             </div>
 
             <div class="form-group">
                 <label for="password">Password *</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                <div class="password-control">
+                    <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+                    <button type="button" class="password-toggle" aria-controls="password" aria-label="Show password" data-password-toggle>Show</button>
+                </div>
             </div>
 
             <!-- Form Actions -->
             <div class="btn-group">
                 <button type="submit" class="btn btn-login">Login</button>
-                <a href="index.html" class="btn btn-cancel" style="text-decoration: none; text-align: center;">Cancel</a>
+                <a href="index.html" class="btn btn-cancel" style="text-decoration: none; text-align: center;">Back to Home</a>
             </div>
         </form>
 
@@ -312,10 +313,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Info Box -->
         <div class="info-box">
-            <strong>💡 Note:</strong> Only registered students can login. 
-            After successful registration, you'll be able to vote in the college elections.
+            <strong>💡 Note:</strong> New accounts need administrator verification
+            before they can sign in and participate in elections.
         </div>
     </div>
+    <script>
+        document.querySelector('[data-password-toggle]').addEventListener('click', function () {
+            const password = document.getElementById('password');
+            const showPassword = password.type === 'password';
+            password.type = showPassword ? 'text' : 'password';
+            this.textContent = showPassword ? 'Hide' : 'Show';
+            this.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+        });
+    </script>
 </body>
 </html>
-

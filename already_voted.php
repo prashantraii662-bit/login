@@ -6,12 +6,27 @@
  * Prevents double voting by redirecting here
  */
 
-session_start();
+require_once 'auth.php';
+startAppSession();
 require_once 'db.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['student_id'])) {
-    header('Location: login.php');
+requireStudent();
+require_once 'includes/navigation.php';
+
+$electionId = filter_input(INPUT_GET, 'election_id', FILTER_VALIDATE_INT);
+if (!$electionId) {
+    header('Location: dashboard.php');
+    exit();
+}
+$participationStmt = $conn->prepare(
+    'SELECT id FROM election_participation WHERE election_id = ? AND user_id = ?'
+);
+$participationStmt->bind_param('ii', $electionId, $_SESSION['user_id']);
+$participationStmt->execute();
+$hasParticipated = (bool) $participationStmt->get_result()->fetch_assoc();
+$participationStmt->close();
+if (!$hasParticipated) {
+    header('Location: dashboard.php');
     exit();
 }
 
@@ -179,8 +194,10 @@ $user_name = htmlspecialchars($_SESSION['user_name'] ?? 'Student');
             }
         }
     </style>
+    <link rel="stylesheet" href="includes/navigation.css">
 </head>
 <body>
+    <?php renderAuthenticatedNavigation('Ballot already submitted', 'Your participation in this election is confirmed.', 'vote'); ?>
     <div class="container">
         <!-- Success Icon -->
         <div class="success-icon">✓</div>
@@ -217,5 +234,6 @@ $user_name = htmlspecialchars($_SESSION['user_name'] ?? 'Student');
             <a href="index.html" class="btn btn-home">Go to Home</a>
         </div>
     </div>
+    <?php renderAuthenticatedNavigationEnd(); ?>
 </body>
 </html>

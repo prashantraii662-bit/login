@@ -1,5 +1,9 @@
 # Online Voting System - Complete Code Documentation
 
+> Historical snapshot only: its code examples describe the original application
+> and are not current implementation guidance. Use [README.md](README.md) for
+> the current routes, database setup, and security behavior.
+
 ## Overview
 This is a complete college election voting system with admin dashboard, user authentication, and real-time vote tracking.
 
@@ -605,18 +609,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $admin_username = trim($_POST['username'] ?? '');
     $admin_password = $_POST['password'] ?? '';
 
-    // Simple admin credentials (in production, use secure methods)
-    $valid_username = 'admin';
-    $valid_password = 'admin123'; // Change this in production
-
-    if ($admin_username === $valid_username && $admin_password === $valid_password) {
-        $_SESSION['admin_logged_in'] = true;
-        $_SESSION['admin_username'] = $admin_username;
-        header('Location: admin.php');
-        exit();
-    } else {
-        $errors[] = 'Invalid username or password';
-    }
+    // The current implementation authenticates an account with the admin role
+    // from the database and verifies its password hash.
 }
 ?>
 
@@ -915,11 +909,9 @@ CREATE TABLE votes (
 
 ---
 
-## Admin Credentials
-- **Username:** admin
-- **Password:** admin123
-
-⚠️ **Important:** Change these credentials in production!
+## Admin Access
+Register a dedicated account, then assign its `role` to `admin` and verify it
+using the setup instructions in `README.md`. No shared default password exists.
 
 ---
 

@@ -1,4 +1,7 @@
 ═══════════════════════════════════════════════════════════════════════════════
+NOTICE: Historical checklist; do not use its legacy schema or voting steps.
+Follow README.md for current setup, security behavior, and known limitations.
+
             COLLEGE VOTING SYSTEM - PRE-DEPLOYMENT CHECKLIST
 ═══════════════════════════════════════════════════════════════════════════════
 

@@ -1,4 +1,6 @@
 /* 
+   HISTORICAL TEST GUIDE - its legacy vote reset instructions are unsafe.
+   Follow README.md for current schema and verified behavior.
    DATABASE AND TESTING REFERENCE
    College Online Voting System v1.0
 */
