@@ -63,6 +63,7 @@ foreach ([
     '004_election_eligibility.sql',
     '005_anonymize_legacy_ballots.sql',
     '006_student_account_status.sql',
+    '007_candidate_applications.sql',
 ] as $migrationFile) {
     $migrationPath = __DIR__ . '/migrations/' . $migrationFile;
     $migrationSql = file_get_contents($migrationPath);

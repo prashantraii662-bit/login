@@ -3,7 +3,8 @@
 An existing PHP/MySQL college voting application, enhanced in place with student
 verification, administrator controls, scheduled elections, secret ballots, and
 published election results. It uses plain PHP, MySQLi, MariaDB/MySQL, HTML, CSS,
-and vanilla JavaScript; there is no framework or package manager.
+and vanilla JavaScript, with no runtime framework. The browser-test harness
+uses Node.js, npm, Playwright, and MySQL2.
 
 ## Project structure
 
@@ -17,7 +18,7 @@ and vanilla JavaScript; there is no framework or package manager.
   results
 - `auth.php`, `config.php`, `db.php` - sessions, authorization, and database
   connection
-- `migrations/001_...sql` through `migrations/006_...sql` - ordered schema
+- `migrations/001_...sql` through `migrations/007_...sql` - ordered schema
   upgrades
 - `uploads/candidates/.htaccess` - prevents PHP execution in candidate uploads
 - `init_db.php` - CLI-only initializer for a brand-new database
@@ -25,6 +26,40 @@ and vanilla JavaScript; there is no framework or package manager.
 
 The PHP pages submit form requests directly; the project does not expose a
 separate REST API.
+
+## Browser tests
+
+Playwright end-to-end tests cover election visibility, candidate
+application/election management, and voting/results. The visibility test registers temporary
+student and admin accounts, creates an election through the admin interface,
+verifies the database record and student Elections list, then removes its test
+data. The candidate workflow test exercises submission, approval, rejection,
+cancellation, safe deletion, and history-protected deletion in Chromium,
+verifies persisted records and transaction rollback, then removes its test
+data. The voting/results test activates an election through the admin panel,
+checks that pending candidates cannot be selected, submits and verifies a
+ballot, tests duplicate-vote prevention, closes voting, publishes results, and
+confirms student result access while keeping unpublished tallies private. The
+full-workflow test follows election creation, student visibility, position
+creation, candidate application and approval, voting, closure, and published
+student results in one browser session. It also verifies the role-specific
+sidebar order.
+
+Start Apache and MySQL in XAMPP, install the Node dependencies, and install the
+Playwright Chromium browser once:
+
+```sh
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+The test uses the app at `http://localhost/Voting/` and the XAMPP defaults
+(`localhost`, `root`, an empty password, and `voting_system`). Set `BASE_URL`,
+`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, or `DB_NAME` if your local
+settings differ. The database settings supplied to the test must match
+`config.php`. The test cleans up its uniquely named temporary records; do not
+run it against a production database.
 
 ## Landing page and authenticated navigation
 
@@ -52,8 +87,16 @@ separate REST API.
   Student details omit passwords and ballot choices. Existing student add,
   edit, eligibility verification, and activate/deactivate actions use CSRF
   protection, hashed initial passwords, and audit logging. Deactivation blocks
-  sign-in without deleting participation history. Admin election and candidate
-  lists also support server-side search/filtering and pagination. Administrator
+  sign-in without deleting participation history. The administrator sidebar
+  separates Dashboard, Elections, Positions, Candidate Applications,
+  Candidates, Students, Voting, and Results. Election creation/editing is
+  separate from position management; application review stays on its own page;
+  Candidates defaults to approved records and keeps pending/rejected direct
+  candidate review available through a status filter; voting controls are
+  separate from published results. The duplicate Reports menu was removed
+  because it opened the same results page. Notifications, audit logs, settings,
+  and logout remain available. Admin election and candidate lists also support
+  server-side search/filtering and pagination. Administrator
   links are rendered only for administrator sessions; the corresponding admin
   pages still enforce authorization independently.
 - Student and administrator accounts have role-scoped notifications and an
@@ -71,10 +114,10 @@ Use one of these options:
 
 1. With XAMPP defaults, run `php init_db.php` from the project directory. This
    initializer refuses to modify an existing `voting_system` database and
-   creates no sample accounts. It creates the base schema and applies all six
+   creates no sample accounts. It creates the base schema and applies all seven
    migrations.
 2. Or execute `database_setup.sql` in phpMyAdmin, then apply migrations
-   `001_auth_roles.sql` through `006_student_account_status.sql` in numeric
+   `001_auth_roles.sql` through `007_candidate_applications.sql` in numeric
    order.
 
 The initializer uses the database settings in `db.php`. Update those settings
@@ -84,7 +127,7 @@ default `localhost` / `root` / empty password.
 ### Existing database
 
 Back up `voting_system` before applying migrations. Apply migrations
-`001_auth_roles.sql` through `006_student_account_status.sql` in numeric order,
+`001_auth_roles.sql` through `007_candidate_applications.sql` in numeric order,
 once each. The initializer is not for upgrades and intentionally refuses an
 existing database. Do not run migrations a second time.
 
@@ -133,8 +176,29 @@ Start Apache and MySQL in XAMPP, then open
 ## Election and ballot behavior
 
 - Administrators create elections with future start/end times, positions, and
-  candidates. Student candidates must be verified; candidates can be approved
-  or rejected and may have an uploaded photo and manifesto.
+  candidates. Election creation saves only the election record; positions are
+  created and managed separately from the Positions section and remain linked
+  through `positions.election_id`. Positions accept applications by default;
+  admins can close applications or set an application window in position
+  settings.
+  Draft elections appear in a clearly labeled “In preparation” section on the
+  student Elections list, without voting actions. Scheduling makes an election
+  visible as upcoming; voting is available only while an election is active
+  and within its voting dates. Student candidates must be verified;
+  candidates can be approved or rejected and may have an uploaded photo and
+  manifesto.
+- Students can submit one candidate application per position while its
+  application window is open. Administrators review applications separately
+  from directly managed candidates; approval creates or links exactly one
+  official approved candidate, while rejection and feedback remain in the
+  student's application history and generate in-app notifications.
+- Administrators can permanently delete an election only when it has no ballot
+  or voter-participation records and no published results. Deletion is a
+  CSRF-protected POST within a transaction; it removes only that election's
+  applications, candidates, eligibility snapshots, positions, and candidate
+  photos. Notifications are retained with their election link cleared, audit
+  history is retained, and failed deletes roll back. Elections with voting
+  history or published results remain in place and cannot be deleted.
 - Elections must be scheduled and activated within their configured time
   window. Activation snapshots verified, active students for that election.
 - A student can submit one ballot per election. The server checks the session,
@@ -161,8 +225,8 @@ The election schema includes `elections`, `positions`, `candidates`,
 `legacy_voter_participation`, `admin_audit_log`, and `notifications`, in addition to `users` and historical
 ballot/participation records.
 
-Tested locally with PHP 8.0.30 and MariaDB 10.4.32 under XAMPP. No automated
-test suite or dependency manifest currently exists.
+Tested locally with PHP 8.0.30 and MariaDB 10.4.32 under XAMPP. The focused
+Playwright end-to-end suite is described in the Browser tests section above.
 
 ## Verification performed
 
@@ -170,8 +234,7 @@ Manual HTTP and database checks have covered student registration and login,
 unverified/invalid login rejection, administrator access control, election and
 candidate management, eligibility snapshotting, early/late voting rejection,
 forged/invalid ballots, successful and duplicate submissions, unpublished and
-published results, turnout, and removal of temporary test records. All PHP
-files pass `php -l`.
+published results, turnout, and removal of temporary test records. All PHP files pass `php -l`.
 
 Candidate photo upload validation, HTTP serving/removal, admin/student search
 filters, notification read state, and authenticated student/admin flows were

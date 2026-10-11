@@ -22,12 +22,14 @@ function renderAuthenticatedNavigation($pageTitle, $description, $activeItem) {
 
     if ($isAdmin) {
         $navigationItems = [
-            ['group' => 'Main', 'key' => 'admin-dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'admin.php'],
-            ['group' => 'Election management', 'key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'admin.php?nav=elections#elections'],
-            ['group' => 'Election management', 'key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'admin.php?nav=candidates#candidate-management'],
-            ['group' => 'User management', 'key' => 'students', 'label' => 'Students', 'icon' => '♙', 'url' => 'admin.php?nav=students#student-management'],
-            ['group' => 'Results and reports', 'key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
-            ['group' => 'Results and reports', 'key' => 'reports', 'label' => 'Reports', 'icon' => '▥', 'url' => 'results.php?nav=reports#reports'],
+            ['group' => 'ADMIN PANEL', 'key' => 'admin-dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'admin.php'],
+            ['group' => 'ADMIN PANEL', 'key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'admin.php?nav=elections#elections'],
+            ['group' => 'ADMIN PANEL', 'key' => 'positions', 'label' => 'Positions', 'icon' => '▤', 'url' => 'admin.php?nav=positions#positions'],
+            ['group' => 'ADMIN PANEL', 'key' => 'applications', 'label' => 'Applications', 'icon' => '▣', 'url' => 'admin_candidate_applications.php'],
+            ['group' => 'ADMIN PANEL', 'key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'admin.php?nav=candidates#candidates'],
+            ['group' => 'ADMIN PANEL', 'key' => 'students', 'label' => 'Students', 'icon' => '♙', 'url' => 'admin.php?nav=students#student-management'],
+            ['group' => 'ADMIN PANEL', 'key' => 'voting', 'label' => 'Voting', 'icon' => '✓', 'url' => 'admin.php?nav=voting#voting'],
+            ['group' => 'ADMIN PANEL', 'key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
             ['group' => 'System', 'key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => $notificationsUrl],
             ['group' => 'System', 'key' => 'audit', 'label' => 'Audit logs', 'icon' => '≡', 'url' => 'admin.php?nav=audit#audit-logs'],
             ['group' => 'System', 'key' => 'settings', 'label' => 'Settings', 'icon' => '⚙', 'url' => 'admin.php?nav=settings#settings']
@@ -36,16 +38,17 @@ function renderAuthenticatedNavigation($pageTitle, $description, $activeItem) {
         $navigationItems = [
             ['group' => 'Main', 'key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '▦', 'url' => 'dashboard.php'],
             ['group' => 'Elections', 'key' => 'elections', 'label' => 'Elections', 'icon' => '◷', 'url' => 'dashboard.php?nav=elections#elections'],
+            ['group' => 'Elections', 'key' => 'candidate-applications', 'label' => 'Applications', 'icon' => '▣', 'url' => 'candidate_applications.php'],
             ['group' => 'Elections', 'key' => 'candidates', 'label' => 'Candidates', 'icon' => '◇', 'url' => 'dashboard.php?nav=candidates#elections'],
-            ['group' => 'Elections', 'key' => 'vote', 'label' => 'Cast Vote', 'icon' => '✓', 'url' => 'dashboard.php?nav=vote#elections'],
+            ['group' => 'Elections', 'key' => 'vote', 'label' => 'Vote', 'icon' => '✓', 'url' => 'dashboard.php?nav=vote#elections'],
             ['group' => 'Account', 'key' => 'results', 'label' => 'Results', 'icon' => '▤', 'url' => 'results.php'],
-            ['group' => 'Account', 'key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => 'dashboard.php?nav=notifications#notifications'],
-            ['group' => 'Account', 'key' => 'profile', 'label' => 'Profile', 'icon' => '♙', 'url' => 'dashboard.php?nav=profile#profile']
+            ['group' => 'Account', 'key' => 'profile', 'label' => 'Profile', 'icon' => '♙', 'url' => 'dashboard.php?nav=profile#profile'],
+            ['group' => 'Account', 'key' => 'notifications', 'label' => 'Notifications', 'icon' => '♧', 'url' => 'dashboard.php?nav=notifications#notifications']
         ];
     }
 
     echo '<div class="app-backdrop" data-nav-close></div>';
-    echo '<aside class="app-sidebar" id="app-sidebar" aria-label="Main navigation">';
+    echo '<aside class="app-sidebar' . ($isAdmin ? ' is-admin-sidebar' : '') . '" id="app-sidebar" aria-label="Main navigation">';
     echo '<a class="app-brand" href="' . ($isAdmin ? 'admin.php' : 'dashboard.php') . '"><span class="app-brand-mark" aria-hidden="true">V</span><span class="app-brand-copy"><strong>CampusVote</strong><small>College elections</small></span></a>';
     echo '<nav class="app-nav">';
     $currentGroup = '';

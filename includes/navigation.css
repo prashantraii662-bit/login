@@ -52,6 +52,7 @@ body {
 .app-nav-label { padding: 16px 11px 8px; color: #99a1b0; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .app-nav-label:first-child { padding-top: 0; }
 .app-nav { display: grid; gap: 5px; }
+.app-sidebar.is-admin-sidebar .app-nav { flex: 1; align-content: start; overflow-y: auto; scrollbar-width: thin; }
 
 .app-nav-link {
     display: flex;

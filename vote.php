@@ -135,6 +135,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Voting for this election is not open.');
                 }
 
+                $approvedCandidateStmt = $conn->prepare(
+                    "SELECT id FROM candidates
+                     WHERE id = ? AND election_id = ? AND position_id = ? AND status = 'approved'
+                     FOR UPDATE"
+                );
+                foreach ($positions as $position) {
+                    $positionId = (int) $position['id'];
+                    $candidateId = (int) $selections[(string) $positionId];
+                    $approvedCandidateStmt->bind_param(
+                        'iii',
+                        $candidateId,
+                        $selectedElectionId,
+                        $positionId
+                    );
+                    $approvedCandidateStmt->execute();
+                    if (!$approvedCandidateStmt->get_result()->fetch_assoc()) {
+                        throw new RuntimeException('One or more selections are no longer approved for this election.');
+                    }
+                }
+                $approvedCandidateStmt->close();
+
                 $participationStmt = $conn->prepare(
                     'INSERT INTO election_participation (election_id, user_id) VALUES (?, ?)'
                 );

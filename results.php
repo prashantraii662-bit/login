@@ -8,6 +8,10 @@ header('Cache-Control: no-store, private');
 
 $isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 $electionId = filter_input(INPUT_GET, 'election_id', FILTER_VALIDATE_INT);
+$adminResultFlash = $isAdmin ? ($_SESSION['admin_flash'] ?? '') : '';
+if ($isAdmin) {
+    unset($_SESSION['admin_flash']);
+}
 
 if ($electionId) {
     $stmt = $conn->prepare(
@@ -92,6 +96,7 @@ if ($electionId) {
         .bar { height: 20px; border-radius: 5px; background: #e5e7eb; overflow: hidden; }
         .fill { height: 100%; background: #586de0; }
         .muted { color: #687386; }
+        .notice { margin: 10px 0; padding: 12px; border-left: 4px solid #43845b; background: #edf8f0; color: #236b35; }
         a.button { display: inline-block; padding: 10px 14px; background: #586de0; color: white; border-radius: 6px; text-decoration: none; }
         @media(max-width:600px) { body { padding:10px; } }
     </style>
@@ -99,13 +104,14 @@ if ($electionId) {
 </head>
 <body>
 <?php
-$resultsNavigation = requestString($_GET, 'nav') === 'reports' && $isAdmin ? 'reports' : 'results';
+$resultsNavigation = 'results';
 $resultsDescription = isset($election)
     ? 'Published election totals, percentages, and turnout.'
     : 'Review results and turnout from elections.';
 renderAuthenticatedNavigation('Election Results', $resultsDescription, $resultsNavigation);
 ?>
-<main id="reports">
+<main id="results">
+    <?php if ($adminResultFlash): ?><p class="notice"><?php echo htmlspecialchars($adminResultFlash, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
     <header>
         <?php if (isset($election)): ?><h2><?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?> — Results</h2><?php endif; ?>
         <a class="button" href="<?php echo $isAdmin ? 'admin.php' : 'dashboard.php'; ?>">Back</a>
@@ -115,6 +121,17 @@ renderAuthenticatedNavigation('Election Results', $resultsDescription, $resultsN
                 · Turnout: <?php echo $eligibleCount ? round($turnoutCount / $eligibleCount * 100, 1) : 0; ?>%
                 (<?php echo $turnoutCount; ?> of <?php echo $eligibleCount; ?> eligible voters)</p>
             <?php if (!$election['results_published']): ?><p class="muted">These tallies are visible only to administrators until results are published.</p><?php endif; ?>
+            <?php if ($isAdmin && !$election['results_published']
+                && in_array($election['status'], ['scheduled', 'active', 'closed'], true)
+                && ($election['status'] === 'closed' || strtotime($election['ends_at']) <= time())): ?>
+                <form method="POST" action="admin.php" onsubmit="return confirm('Publish final results? This cannot be undone.');">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="action" value="set_election_status">
+                    <input type="hidden" name="status" value="publish">
+                    <input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
+                    <button type="submit">Publish results</button>
+                </form>
+            <?php endif; ?>
         <?php endif; ?>
     </header>
 

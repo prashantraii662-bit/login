@@ -35,7 +35,7 @@ function assertElectionEditable($conn, $electionId) {
     $stmt->close();
 
     if (!$election || !in_array($election['status'], ['draft', 'scheduled'], true)
-        || strtotime($election['starts_at']) <= time()) {
+        || ($election['status'] === 'scheduled' && strtotime($election['starts_at']) <= time())) {
         throw new RuntimeException('This election can no longer be edited.');
     }
     return $election;
@@ -224,16 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $description = trim(requestString($_POST, 'description'));
                 $startsAt = parseElectionDate(requestString($_POST, 'starts_at'));
                 $endsAt = parseElectionDate(requestString($_POST, 'ends_at'));
-                $positionNames = array_values(array_unique(array_filter(
-                    array_map('trim', preg_split('/\r\n|\r|\n/', requestString($_POST, 'positions'))),
-                    function ($name) {
-                        return $name !== '';
-                    }
-                )));
                 if ($title === '' || strlen($title) > 200 || !$startsAt || !$endsAt
                     || strtotime($startsAt) <= time() || strtotime($endsAt) <= strtotime($startsAt)
-                    || !$positionNames) {
-                    throw new RuntimeException('Provide a title, future end time, valid date range, and at least one position.');
+                    ) {
+                    throw new RuntimeException('Provide a title and a valid future election date range.');
                 }
 
                 $conn->begin_transaction();
@@ -247,18 +241,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $electionId = $conn->insert_id;
                 $stmt->close();
 
-                $positionStmt = $conn->prepare(
-                    'INSERT INTO positions (election_id, name, sort_order) VALUES (?, ?, ?)'
-                );
-                foreach ($positionNames as $index => $name) {
-                    if (strlen($name) > 100) {
-                        throw new RuntimeException('Position names must be 100 characters or fewer.');
-                    }
-                    $order = $index + 1;
-                    $positionStmt->bind_param('isi', $electionId, $name, $order);
-                    $positionStmt->execute();
-                }
-                $positionStmt->close();
                 auditAdminAction($conn, 'election_created', 'election', $electionId);
                 $conn->commit();
                 $transactionStarted = false;
@@ -286,26 +268,200 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conn->commit();
                 $transactionStarted = false;
                 $_SESSION['admin_flash'] = 'Election details updated.';
+            } elseif ($action === 'delete_election') {
+                $electionId = filter_var($_POST['election_id'] ?? null, FILTER_VALIDATE_INT);
+                if (!$electionId || $electionId < 1) {
+                    throw new RuntimeException('Select a valid election to delete.');
+                }
+
+                $conn->begin_transaction();
+                $transactionStarted = true;
+                $electionStmt = $conn->prepare(
+                    'SELECT id, title, results_published FROM elections WHERE id = ? FOR UPDATE'
+                );
+                $electionStmt->bind_param('i', $electionId);
+                $electionStmt->execute();
+                $election = $electionStmt->get_result()->fetch_assoc();
+                $electionStmt->close();
+                if (!$election) {
+                    throw new RuntimeException('This election no longer exists. Refresh the list and try again.');
+                }
+
+                $historyStmt = $conn->prepare(
+                    'SELECT
+                        (SELECT COUNT(*) FROM ballots WHERE election_id = ?) AS ballot_count,
+                        (SELECT COUNT(*) FROM election_participation WHERE election_id = ?) AS participation_count'
+                );
+                $historyStmt->bind_param('ii', $electionId, $electionId);
+                $historyStmt->execute();
+                $history = $historyStmt->get_result()->fetch_assoc();
+                $historyStmt->close();
+                if ((int) $history['ballot_count'] > 0
+                    || (int) $history['participation_count'] > 0
+                    || (int) $election['results_published'] === 1) {
+                    throw new RuntimeException(
+                        'This election has voting records or published results and cannot be permanently deleted. '
+                        . 'Close voting if it is still active; preserve the election history.'
+                    );
+                }
+
+                $photoStmt = $conn->prepare(
+                    'SELECT photo_path FROM candidates WHERE election_id = ? AND photo_path IS NOT NULL'
+                );
+                $photoStmt->bind_param('i', $electionId);
+                $photoStmt->execute();
+                $candidatePhotos = $photoStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $photoStmt->close();
+
+                $deleteApplicationsStmt = $conn->prepare(
+                    'DELETE FROM candidate_applications WHERE election_id = ?'
+                );
+                $deleteApplicationsStmt->bind_param('i', $electionId);
+                $deleteApplicationsStmt->execute();
+                $deleteApplicationsStmt->close();
+
+                $deleteCandidatesStmt = $conn->prepare(
+                    'DELETE FROM candidates WHERE election_id = ?'
+                );
+                $deleteCandidatesStmt->bind_param('i', $electionId);
+                $deleteCandidatesStmt->execute();
+                $deleteCandidatesStmt->close();
+
+                $deleteEligibilityStmt = $conn->prepare(
+                    'DELETE FROM election_eligibility WHERE election_id = ?'
+                );
+                $deleteEligibilityStmt->bind_param('i', $electionId);
+                $deleteEligibilityStmt->execute();
+                $deleteEligibilityStmt->close();
+
+                $deletePositionsStmt = $conn->prepare(
+                    'DELETE FROM positions WHERE election_id = ?'
+                );
+                $deletePositionsStmt->bind_param('i', $electionId);
+                $deletePositionsStmt->execute();
+                $deletePositionsStmt->close();
+
+                $deleteElectionStmt = $conn->prepare('DELETE FROM elections WHERE id = ?');
+                $deleteElectionStmt->bind_param('i', $electionId);
+                $deleteElectionStmt->execute();
+                if ($deleteElectionStmt->affected_rows !== 1) {
+                    $deleteElectionStmt->close();
+                    throw new RuntimeException('The election could not be deleted. Refresh the list and try again.');
+                }
+                $deleteElectionStmt->close();
+                auditAdminAction(
+                    $conn,
+                    'election_deleted',
+                    'election',
+                    $electionId,
+                    'Deleted election: ' . $election['title']
+                );
+                $conn->commit();
+                $transactionStarted = false;
+
+                foreach ($candidatePhotos as $candidatePhoto) {
+                    removeCandidatePhoto($candidatePhoto['photo_path']);
+                }
+                $_SESSION['admin_flash'] = 'Election "' . $election['title'] . '" and its positions, candidates, applications, and eligibility records were deleted. Election notifications and audit history were preserved.';
             } elseif ($action === 'add_position') {
                 $electionId = filter_var($_POST['election_id'] ?? null, FILTER_VALIDATE_INT);
                 $name = trim(requestString($_POST, 'name'));
-                if (!$electionId || $name === '' || strlen($name) > 100) {
+                $description = trim(requestString($_POST, 'description'));
+                $requirements = trim(requestString($_POST, 'eligibility_requirements'));
+                if (!$electionId || $name === '' || strlen($name) > 100
+                    || strlen($description) > 10000 || strlen($requirements) > 10000) {
                     throw new RuntimeException('Provide a valid position name.');
                 }
                 $conn->begin_transaction();
                 $transactionStarted = true;
                 assertElectionEditable($conn, $electionId);
                 $stmt = $conn->prepare(
-                    'INSERT INTO positions (election_id, name, sort_order) VALUES (?, ?, (SELECT COUNT(*) + 1 FROM (SELECT id FROM positions WHERE election_id = ?) AS existing_positions))'
+                    'INSERT INTO positions
+                        (election_id, name, description, eligibility_requirements, sort_order, applications_open)
+                     VALUES (?, ?, ?, ?, (SELECT COUNT(*) + 1 FROM
+                         (SELECT id FROM positions WHERE election_id = ?) AS existing_positions), 1)'
                 );
-                $stmt->bind_param('isi', $electionId, $name, $electionId);
+                $stmt->bind_param('isssi', $electionId, $name, $description, $requirements, $electionId);
                 $stmt->execute();
                 $positionId = $conn->insert_id;
                 $stmt->close();
                 auditAdminAction($conn, 'position_added', 'position', $positionId);
                 $conn->commit();
                 $transactionStarted = false;
-                $_SESSION['admin_flash'] = 'Position added.';
+                $_SESSION['admin_flash'] = 'Position added. Student applications are open; you can close them in the position settings.';
+            } elseif ($action === 'manage_position') {
+                $electionId = filter_var($_POST['election_id'] ?? null, FILTER_VALIDATE_INT);
+                $positionId = filter_var($_POST['position_id'] ?? null, FILTER_VALIDATE_INT);
+                $name = trim(requestString($_POST, 'name'));
+                $description = trim(requestString($_POST, 'description'));
+                $requirements = trim(requestString($_POST, 'eligibility_requirements'));
+                $applicationsOpenValue = requestString($_POST, 'applications_open');
+                $opensAtInput = requestString($_POST, 'applications_open_at');
+                $closesAtInput = requestString($_POST, 'applications_close_at');
+                $opensAt = $opensAtInput === '' ? null : parseElectionDate($opensAtInput);
+                $closesAt = $closesAtInput === '' ? null : parseElectionDate($closesAtInput);
+                if (!$electionId || !$positionId || $name === '' || strlen($name) > 100
+                    || strlen($description) > 10000 || strlen($requirements) > 10000
+                    || !in_array($applicationsOpenValue, ['0', '1'], true)
+                    || ($opensAtInput !== '' && !$opensAt) || ($closesAtInput !== '' && !$closesAt)
+                    || ($opensAt && $closesAt && strtotime($closesAt) <= strtotime($opensAt))) {
+                    throw new RuntimeException('Enter valid position details and an application window where the closing time is after the opening time.');
+                }
+                $conn->begin_transaction();
+                $transactionStarted = true;
+                assertElectionEditable($conn, $electionId);
+                $positionStmt = $conn->prepare('SELECT id FROM positions WHERE id = ? AND election_id = ? FOR UPDATE');
+                $positionStmt->bind_param('ii', $positionId, $electionId);
+                $positionStmt->execute();
+                $positionExists = $positionStmt->get_result()->fetch_assoc();
+                $positionStmt->close();
+                if (!$positionExists) {
+                    throw new RuntimeException('The selected position does not belong to this election.');
+                }
+                if ($applicationsOpenValue === '1') {
+                    $electionStmt = $conn->prepare('SELECT status, starts_at FROM elections WHERE id = ?');
+                    $electionStmt->bind_param('i', $electionId);
+                    $electionStmt->execute();
+                    $electionWindow = $electionStmt->get_result()->fetch_assoc();
+                    $electionStmt->close();
+                    if (!$electionWindow || !in_array($electionWindow['status'], ['draft', 'scheduled'], true)
+                        || strtotime($electionWindow['starts_at']) <= time()
+                        || ($closesAt && strtotime($closesAt) <= time())) {
+                        throw new RuntimeException('Applications can only be opened before voting starts, with a closing time in the future.');
+                    }
+                }
+                $applicationsOpen = (int) $applicationsOpenValue;
+                $stmt = $conn->prepare(
+                    'UPDATE positions
+                     SET name = ?, description = ?, eligibility_requirements = ?, applications_open = ?,
+                         applications_open_at = ?, applications_close_at = ?
+                     WHERE id = ? AND election_id = ?'
+                );
+                $stmt->bind_param(
+                    'sssissii',
+                    $name,
+                    $description,
+                    $requirements,
+                    $applicationsOpen,
+                    $opensAt,
+                    $closesAt,
+                    $positionId,
+                    $electionId
+                );
+                $stmt->execute();
+                $stmt->close();
+                auditAdminAction(
+                    $conn,
+                    'position_updated',
+                    'position',
+                    $positionId,
+                    'applications_open=' . $applicationsOpen
+                );
+                $conn->commit();
+                $transactionStarted = false;
+                $_SESSION['admin_flash'] = $applicationsOpen
+                    ? 'Position saved. Student applications are open for this position.'
+                    : 'Position saved. Student applications are closed for this position.';
             } elseif ($action === 'set_election_status') {
                 $electionId = filter_var($_POST['election_id'] ?? null, FILTER_VALIDATE_INT);
                 $status = $_POST['status'] ?? '';
@@ -346,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newStatus = 'closed';
                 } elseif ($status === 'publish' && !$election['results_published']
                     && in_array($election['status'], ['scheduled', 'active', 'closed'], true)
-                    && strtotime($election['ends_at']) <= time()) {
+                    && ($election['status'] === 'closed' || strtotime($election['ends_at']) <= time())) {
                     $newStatus = 'closed';
                 } else {
                     throw new RuntimeException('This election cannot make that status transition.');
@@ -509,14 +665,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $redirectSection = [
+                'create_election' => '?nav=elections#elections',
+                'update_election' => '?nav=elections#elections',
                 'mark_admin_notification_read' => '?nav=notifications#admin-notifications',
                 'change_admin_password' => '?nav=settings#settings',
                 'add_student' => '?nav=students#student-management',
                 'update_student' => '?nav=students#student-management',
                 'verify_student' => '?nav=students#student-management',
-                'set_student_active' => '?nav=students#student-management'
+                'set_student_active' => '?nav=students#student-management',
+                'delete_election' => '?nav=elections#elections',
+                'add_position' => '?nav=positions&position_election_id=' . (int) ($_POST['election_id'] ?? 0) . '#positions',
+                'manage_position' => '?nav=positions&position_election_id=' . (int) ($_POST['election_id'] ?? 0) . '#positions',
+                'add_candidate' => '?nav=candidates#candidates',
+                'update_candidate' => '?nav=candidates#candidates',
+                'delete_candidate' => '?nav=candidates#candidates',
+                'set_election_status' => '?nav=voting#voting'
             ];
-            header('Location: admin.php' . ($redirectSection[$action] ?? ''));
+            if ($action === 'set_election_status' && requestString($_POST, 'status') === 'publish') {
+                header('Location: results.php?election_id=' . (int) ($_POST['election_id'] ?? 0));
+            } else {
+                header('Location: admin.php' . ($redirectSection[$action] ?? ''));
+            }
             exit();
         } catch (mysqli_sql_exception $exception) {
             if ($transactionStarted) {
@@ -581,9 +750,18 @@ $electionPage = $electionPage && $electionPage > 0 ? (int) $electionPage : 1;
 $electionsPerPage = 10;
 $candidateSearch = trim(requestString($_GET, 'candidate_q'));
 $candidateSearchLike = '%' . $candidateSearch . '%';
+$candidateStatus = requestString($_GET, 'candidate_status');
+if (!in_array($candidateStatus, ['approved', 'pending', 'rejected', 'all'], true)) {
+    $candidateStatus = 'approved';
+}
 $candidatePageSize = 10;
 $candidatePositionId = filter_var($_GET['candidate_position'] ?? null, FILTER_VALIDATE_INT);
 $candidatePositionId = $candidatePositionId ? (int) $candidatePositionId : 0;
+$positionElectionId = filter_var($_GET['position_election_id'] ?? null, FILTER_VALIDATE_INT);
+$positionElectionId = $positionElectionId ? (int) $positionElectionId : 0;
+$positionElectionFilterId = requestString($_GET, 'nav') === 'positions'
+    ? ($positionElectionId ?: -1)
+    : 0;
 $candidatePageOptions = $_GET['candidate_page'] ?? [];
 if (!is_array($candidatePageOptions)) {
     $candidatePageOptions = [];
@@ -591,10 +769,20 @@ if (!is_array($candidatePageOptions)) {
 $electionCountStmt = $conn->prepare(
     'SELECT COUNT(*) AS total FROM elections
      WHERE (? = \'\' OR title LIKE ? OR description LIKE ?)
-       AND (? = \'all\' OR status = ?)'
+       AND (? = \'all\' OR status = ?)
+       AND (? = 0 OR id = ?)'
 );
 $electionSearchLike = '%' . $electionSearch . '%';
-$electionCountStmt->bind_param('sssss', $electionSearch, $electionSearchLike, $electionSearchLike, $electionStatus, $electionStatus);
+$electionCountStmt->bind_param(
+    'sssssii',
+    $electionSearch,
+    $electionSearchLike,
+    $electionSearchLike,
+    $electionStatus,
+    $electionStatus,
+    $positionElectionFilterId,
+    $positionElectionFilterId
+);
 $electionCountStmt->execute();
 $electionCount = (int) $electionCountStmt->get_result()->fetch_assoc()['total'];
 $electionCountStmt->close();
@@ -604,30 +792,45 @@ $electionOffset = ($electionPage - 1) * $electionsPerPage;
 $electionStmt = $conn->prepare(
     'SELECT e.*,
         (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS position_count,
+        (SELECT COUNT(*) FROM positions mp
+         WHERE mp.election_id = e.id
+           AND NOT EXISTS (
+               SELECT 1 FROM candidates mc
+               WHERE mc.position_id = mp.id AND mc.election_id = e.id AND mc.status = \'approved\'
+           )) AS positions_without_approved,
         (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidate_count,
+        (SELECT COUNT(*) FROM candidates ac WHERE ac.election_id = e.id AND ac.status = \'approved\') AS approved_candidate_count,
+        (SELECT COUNT(*) FROM candidate_applications ca WHERE ca.election_id = e.id) AS application_count,
         (SELECT COUNT(*) FROM election_participation ep WHERE ep.election_id = e.id) AS turnout,
+        (SELECT COUNT(*) FROM ballots b WHERE b.election_id = e.id) AS ballot_count,
         (SELECT COUNT(*) FROM candidates fc
          WHERE fc.election_id = e.id
            AND (? = \'\' OR fc.name LIKE ? OR COALESCE(fc.student_id, \'\') LIKE ?)
-           AND (? = 0 OR fc.position_id = ?)) AS matching_candidate_count
+           AND (? = 0 OR fc.position_id = ?)
+           AND (? = \'all\' OR fc.status = ?)) AS matching_candidate_count
      FROM elections e
      WHERE (? = \'\' OR e.title LIKE ? OR e.description LIKE ?)
        AND (? = \'all\' OR e.status = ?)
+       AND (? = 0 OR e.id = ?)
      ORDER BY e.starts_at DESC, e.id DESC
      LIMIT ? OFFSET ?'
 );
 $electionStmt->bind_param(
-    'sssiisssssii',
+    'sssiisssssssiiii',
     $candidateSearch,
     $candidateSearchLike,
     $candidateSearchLike,
     $candidatePositionId,
     $candidatePositionId,
+    $candidateStatus,
+    $candidateStatus,
     $electionSearch,
     $electionSearchLike,
     $electionSearchLike,
     $electionStatus,
     $electionStatus,
+    $positionElectionFilterId,
+    $positionElectionFilterId,
     $electionsPerPage,
     $electionOffset
 );
@@ -723,6 +926,7 @@ $candidateStmt = $conn->prepare(
      WHERE c.election_id = ?
        AND (? = \'\' OR c.name LIKE ? OR COALESCE(c.student_id, \'\') LIKE ?)
        AND (? = 0 OR c.position_id = ?)
+       AND (? = \'all\' OR c.status = ?)
      ORDER BY p.sort_order, p.id, c.name, c.id
      LIMIT ? OFFSET ?'
 );
@@ -738,34 +942,50 @@ foreach ($elections as &$electionRow) {
     $electionRow['candidate_pages'] = $candidatePages;
     $electionRow['candidate_offset'] = $candidateOffset;
     $candidateStmt->bind_param(
-        'isssiiii',
+        'isssiissii',
         $electionId,
         $candidateSearch,
         $candidateSearchLike,
         $candidateSearchLike,
         $candidatePositionId,
         $candidatePositionId,
+        $candidateStatus,
+        $candidateStatus,
         $candidatePageSize,
         $candidateOffset
     );
     $candidateStmt->execute();
     $electionRow['candidates'] = $candidateStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    $positionStmt = $conn->prepare('SELECT id, name FROM positions WHERE election_id = ? ORDER BY sort_order, id');
+    $positionStmt = $conn->prepare(
+        'SELECT p.id, p.name, p.description, p.eligibility_requirements, p.applications_open,
+                p.applications_open_at, p.applications_close_at,
+                (SELECT COUNT(*) FROM candidate_applications ca WHERE ca.position_id = p.id) AS application_count,
+                (SELECT COUNT(*) FROM candidate_applications ca WHERE ca.position_id = p.id AND ca.status = \'pending\') AS pending_application_count
+         FROM positions p WHERE p.election_id = ? ORDER BY p.sort_order, p.id'
+    );
     $positionStmt->bind_param('i', $electionId);
     $positionStmt->execute();
     $electionRow['positions'] = $positionStmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $positionStmt->close();
 
-    $editable = in_array($electionRow['status'], ['draft', 'scheduled'], true)
-        && strtotime($electionRow['starts_at']) > time();
+    $editable = $electionRow['status'] === 'draft'
+        || ($electionRow['status'] === 'scheduled' && strtotime($electionRow['starts_at']) > time());
     $electionRow['editable'] = $editable;
+    $electionRow['can_schedule'] = $electionRow['status'] === 'draft'
+        && (int) $electionRow['position_count'] > 0
+        && (int) $electionRow['positions_without_approved'] === 0
+        && strtotime($electionRow['starts_at']) > time()
+        && strtotime($electionRow['ends_at']) > time();
 }
 unset($electionRow);
 $candidateStmt->close();
 $positionFilterOptions = $conn->query(
     'SELECT p.id, p.name, e.title AS election_title FROM positions p
      JOIN elections e ON e.id = p.election_id ORDER BY e.starts_at DESC, p.sort_order, p.name'
+)->fetch_all(MYSQLI_ASSOC);
+$positionElectionOptions = $conn->query(
+    'SELECT id, title FROM elections ORDER BY starts_at DESC, id DESC'
 )->fetch_all(MYSQLI_ASSOC);
 $adminId = (int) $_SESSION['user_id'];
 $notificationStmt = $conn->prepare(
@@ -799,6 +1019,7 @@ $notificationStmt->close();
         input, textarea, select { width: 100%; padding: 10px; border: 1px solid #cbd1df; border-radius: 6px; font: inherit; }
         textarea { min-height: 76px; resize: vertical; }
         button, .button { border: 0; border-radius: 6px; padding: 10px 15px; background: #586de0; color: white; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
         button.danger { background: #c43b4b; }
         button.secondary { background: #64748b; }
         .inline-form { display: inline-block; margin: 4px; }
@@ -808,6 +1029,22 @@ $notificationStmt->close();
         .notice { padding: 12px; border-radius: 7px; background: #e9f5ec; color: #236b35; margin: 12px 0; }
         .error { padding: 12px; border-radius: 7px; background: #fff0f0; color: #942e2e; margin: 12px 0; }
         .muted { color: #697386; }
+        .election-guide { margin: 0 0 18px; padding: 18px; border: 1px solid #dce4fb; border-radius: 10px; background: #f7f8ff; }
+        .election-guide h3 { margin: 0 0 6px; color: #283b66; }
+        .election-guide > p { margin: 0 0 14px; color: #697386; }
+        .election-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: election-step; }
+        .election-steps li { position: relative; min-height: 92px; padding: 13px 12px 12px 43px; border: 1px solid #e3e7f2; border-radius: 8px; background: #fff; color: #697386; font-size: 13px; line-height: 1.45; counter-increment: election-step; }
+        .election-steps li::before { position: absolute; top: 12px; left: 12px; display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; background: #586de0; color: #fff; content: counter(election-step); font-weight: 700; }
+        .election-steps strong { display: block; margin-bottom: 3px; color: #283044; }
+        .election-field-help { margin: 4px 0 0; color: #697386; font-size: 12px; line-height: 1.45; }
+        .election-checklist { margin: 12px 0; padding: 12px 15px; border: 1px solid #e0e5ef; border-radius: 8px; background: #f8f9fc; color: #4b5669; }
+        .election-checklist p { margin: 4px 0; }
+        .election-checklist.is-ready { border-color: #b9dfc5; background: #f1faf4; color: #236b35; }
+        .election-checklist.is-blocked { border-color: #f0d9aa; background: #fff9ed; color: #79521a; }
+        .election-card-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+        .election-status { display: inline-block; padding: 5px 10px; border-radius: 20px; background: #eef0ff; color: #4355ae; font-size: 12px; font-weight: 700; text-transform: capitalize; }
+        .election-status.is-active { background: #e9f7ef; color: #21794b; }
+        .election-action-note { margin: 8px 0; color: #697386; font-size: 13px; }
         .student-section-heading, .student-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .student-section-heading { margin-bottom: 20px; }
         .student-section-heading h2, .student-results-heading h3 { margin: 0; color: #26354d; }
@@ -887,23 +1124,25 @@ $notificationStmt->close();
             .student-table td[data-label="Student"]::before { content: none; }
             .student-actions { min-width: 0; }
             .student-details-panel, .student-edit-form { right: auto; left: 0; }
-        }
+                .election-steps { grid-template-columns: 1fr; }
+            }
     </style>
     <link rel="stylesheet" href="includes/navigation.css">
 </head>
 <body>
 <?php
 $activeNavigation = requestString($_GET, 'nav');
-if (!in_array($activeNavigation, ['admin-dashboard', 'students', 'candidates', 'elections', 'results', 'reports', 'notifications', 'audit', 'settings'], true)) {
+if (!in_array($activeNavigation, ['admin-dashboard', 'students', 'candidates', 'elections', 'positions', 'voting', 'results', 'notifications', 'audit', 'settings'], true)) {
     $activeNavigation = 'admin-dashboard';
 }
 $navigationTitles = [
     'admin-dashboard' => ['Admin Dashboard', 'Manage elections and review system activity.'],
     'students' => ['Student Management', 'Review student accounts, eligibility, and status.'],
-    'candidates' => ['Candidate Management', 'Review and manage election candidates.'],
-    'elections' => ['Election Management', 'Create elections, positions, and schedules.'],
+    'candidates' => ['Candidates', 'Review approved candidates across elections.'],
+    'elections' => ['Elections', 'Create elections and manage election details.'],
+    'positions' => ['Positions', 'Manage positions and candidate application windows.'],
+    'voting' => ['Voting', 'Monitor election status, turnout, and voting controls.'],
     'results' => ['Election Results', 'Review election results and turnout.'],
-    'reports' => ['Election Reports', 'Review election totals and participation reports.'],
     'notifications' => ['Notifications', 'Election and account updates for your administrator account.'],
     'audit' => ['Audit Logs', 'Review recorded administrator actions.'],
     'settings' => ['Settings', 'Update your administrator account password.']
@@ -950,6 +1189,7 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
         </div>
     <?php endif; ?>
 
+    <?php if ($activeNavigation === 'students'): ?>
     <section id="student-management">
         <div class="student-section-heading">
             <div>
@@ -1151,34 +1391,79 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
             </div>
         <?php endif; ?>
     </section>
+    <?php endif; ?>
 
+    <?php if ($activeNavigation === 'elections'): ?>
     <section id="elections">
-        <h2>Create election</h2>
+        <h2>Create a new election</h2>
+        <div class="election-guide">
+            <h3>How to set up an election</h3>
+            <p>Creating an election only saves a draft. Follow these steps to make it available to students:</p>
+            <ol class="election-steps">
+                <li><strong>Create a draft</strong>Enter the election title and voting dates. Students can see the election in preparation; it is not available for voting until scheduled and activated.</li>
+                <li><strong>Set up positions</strong>Open Positions and create the positions for this election.</li>
+                <li><strong>Review candidates</strong>Students apply from Candidate Applications; approve applications there. Every position needs at least one approved candidate.</li>
+                <li><strong>Schedule it</strong>Once all positions have an approved candidate and the start time is still in the future, choose Schedule election. Students can then see it as upcoming.</li>
+                <li><strong>Open voting</strong>At the start time, choose Activate voting. Students can vote until the end time.</li>
+            </ol>
+        </div>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="action" value="create_election">
             <div class="grid">
-                <div><label for="title">Election title</label><input id="title" name="title" maxlength="200" required></div>
-                <div><label for="starts_at">Starts</label><input id="starts_at" name="starts_at" type="datetime-local" required></div>
-                <div><label for="ends_at">Ends</label><input id="ends_at" name="ends_at" type="datetime-local" required></div>
+                <div><label for="title">Election title</label><input id="title" name="title" maxlength="200" required placeholder="For example: Student Council Election"></div>
+                <div><label for="starts_at">Voting starts</label><input id="starts_at" name="starts_at" type="datetime-local" required><p class="election-field-help">Choose a future date and time. You must activate voting when this time arrives.</p></div>
+                <div><label for="ends_at">Voting ends</label><input id="ends_at" name="ends_at" type="datetime-local" required><p class="election-field-help">Must be later than the start time.</p></div>
             </div>
-            <label for="description">Description and instructions</label><textarea id="description" name="description"></textarea>
-            <label for="positions">Positions (one per line)</label><textarea id="positions" name="positions" required placeholder="President&#10;Secretary"></textarea>
-            <button type="submit">Create draft election</button>
+            <label for="description">Description for students (optional)</label><textarea id="description" name="description" placeholder="Share any instructions or information about this election."></textarea>
+            <button type="submit">Create draft and continue</button>
         </form>
     </section>
+    <?php endif; ?>
 
-    <section>
-        <h2>Elections</h2>
+    <?php if (in_array($activeNavigation, ['elections', 'positions', 'candidates', 'voting'], true)): ?>
+    <section id="<?php echo htmlspecialchars($activeNavigation, ENT_QUOTES, 'UTF-8'); ?>">
+        <h2><?php echo htmlspecialchars($navigationTitles[$activeNavigation][0], ENT_QUOTES, 'UTF-8'); ?></h2>
+        <?php if ($activeNavigation === 'positions'): ?>
+            <p class="muted">Positions are grouped under their election. Manage position details and application windows here.</p>
+        <?php elseif ($activeNavigation === 'candidates'): ?>
+            <p class="muted">Official candidates are approved students only. Use the status filter to review pending or rejected admin-managed candidate records.</p>
+        <?php elseif ($activeNavigation === 'voting'): ?>
+            <p class="muted">Review election voting status and use the controls here to schedule, open, or close voting.</p>
+        <?php endif; ?>
+        <?php if ($activeNavigation === 'positions'): ?>
+            <form method="GET" class="grid">
+                <input type="hidden" name="nav" value="positions">
+                <div>
+                    <label for="position_election_id">Select election</label>
+                    <select id="position_election_id" name="position_election_id" required>
+                        <option value="">Choose an election</option>
+                        <?php foreach ($positionElectionOptions as $positionElection): ?>
+                            <option value="<?php echo (int) $positionElection['id']; ?>" <?php echo $positionElectionId === (int) $positionElection['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($positionElection['title'], ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="align-self:end"><button type="submit">Open election positions</button></div>
+            </form>
+            <?php if (!$positionElectionId): ?><p class="muted">Choose an election to view and manage only its positions.</p><?php endif; ?>
+        <?php endif; ?>
+        <?php if ($activeNavigation === 'elections' || $activeNavigation === 'candidates'): ?>
         <form method="GET" class="grid">
-            <input type="hidden" name="nav" value="elections">
+            <input type="hidden" name="nav" value="<?php echo htmlspecialchars($activeNavigation, ENT_QUOTES, 'UTF-8'); ?>">
             <div><label for="election_q">Search elections</label><input id="election_q" name="election_q" value="<?php echo htmlspecialchars($electionSearch, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Title or description"></div>
             <div><label for="election_status">Election status</label><select id="election_status" name="election_status">
                 <?php foreach (['all' => 'All statuses', 'draft' => 'Draft', 'scheduled' => 'Upcoming', 'active' => 'Active', 'closed' => 'Completed'] as $value => $label): ?>
                     <option value="<?php echo $value; ?>" <?php echo $electionStatus === $value ? 'selected' : ''; ?>><?php echo $label; ?></option>
                 <?php endforeach; ?>
             </select></div>
-            <div id="candidate-management"><label for="candidate_q">Search candidates</label><input id="candidate_q" name="candidate_q" value="<?php echo htmlspecialchars($candidateSearch, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Candidate name or student ID"></div>
+            <?php if ($activeNavigation === 'candidates'): ?><div id="candidate-management"><label for="candidate_q">Search candidates</label><input id="candidate_q" name="candidate_q" value="<?php echo htmlspecialchars($candidateSearch, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Candidate name or student ID"></div>
+            <div><label for="candidate_status">Candidate status</label><select id="candidate_status" name="candidate_status">
+                <?php foreach (['approved' => 'Approved candidates', 'pending' => 'Pending review', 'rejected' => 'Rejected', 'all' => 'All statuses'] as $value => $label): ?>
+                    <option value="<?php echo $value; ?>" <?php echo $candidateStatus === $value ? 'selected' : ''; ?>><?php echo $label; ?></option>
+                <?php endforeach; ?>
+            </select></div>
             <div><label for="candidate_position">Candidate position</label><select id="candidate_position" name="candidate_position">
                 <option value="0">All positions</option>
                 <?php foreach ($positionFilterOptions as $positionOption): ?>
@@ -1186,22 +1471,79 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         <?php echo htmlspecialchars($positionOption['election_title'] . ' - ' . $positionOption['name'], ENT_QUOTES, 'UTF-8'); ?>
                     </option>
                 <?php endforeach; ?>
-            </select></div>
+            </select></div><?php endif; ?>
             <div style="align-self:end"><button type="submit">Apply filters</button></div>
         </form>
-        <?php if (!$elections): ?><p class="muted">No elections have been created yet.</p><?php endif; ?>
+        <?php endif; ?>
+        <?php if (!$elections): ?>
+            <p class="muted"><?php echo $activeNavigation === 'positions' ? 'No positions can be managed for the selected election.' : 'No elections have been created yet.'; ?></p>
+        <?php endif; ?>
         <?php foreach ($elections as $election): ?>
             <article class="election">
-                <h3><?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                <div class="election-card-heading">
+                    <h3><?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                    <span class="election-status <?php echo $election['status'] === 'active' ? 'is-active' : ''; ?>">Status: <?php echo htmlspecialchars($election['status'], ENT_QUOTES, 'UTF-8'); ?></span>
+                </div>
                 <p><?php echo htmlspecialchars($election['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
                 <p class="muted">
                     <?php echo htmlspecialchars($election['starts_at'] . ' to ' . $election['ends_at'], ENT_QUOTES, 'UTF-8'); ?>
                     · Status: <?php echo htmlspecialchars($election['status'], ENT_QUOTES, 'UTF-8'); ?>
                     · <?php echo (int) $election['position_count']; ?> positions
                     · <?php echo (int) $election['candidate_count']; ?> candidates
+                    · <?php echo (int) $election['approved_candidate_count']; ?> approved
                     · <?php echo (int) $election['turnout']; ?> voters
                 </p>
+                <?php if ($activeNavigation === 'elections'): ?>
+                <?php if ($election['status'] === 'draft'): ?>
+                    <div class="election-checklist <?php echo $election['can_schedule'] ? 'is-ready' : 'is-blocked'; ?>">
+                        <strong><?php echo $election['can_schedule'] ? 'Ready to schedule' : 'Still being set up'; ?></strong>
+                        <p><?php echo (int) $election['approved_candidate_count']; ?> approved candidate(s) · <?php echo (int) $election['positions_without_approved']; ?> position(s) still need an approved candidate.</p>
+                        <?php if ((int) $election['position_count'] === 0): ?><p>Add at least one position before scheduling.</p><?php endif; ?>
+                        <?php if (strtotime($election['starts_at']) <= time()): ?><p>The start time has passed. Edit the draft dates and choose a future start time.</p><?php endif; ?>
+                        <p>Students can see this election in preparation, but cannot vote until it is scheduled and activated.</p>
+                    </div>
+                <?php elseif ((int) $election['approved_candidate_count'] === 0 && in_array($election['status'], ['scheduled', 'active'], true)): ?>
+                    <div class="election-checklist is-blocked"><p>No candidates are approved yet, so students will see no candidate choices for this election.</p></div>
+                <?php endif; ?>
+                <?php if ($election['status'] === 'scheduled'): ?>
+                    <?php if (strtotime($election['starts_at']) > time()): ?>
+                        <p class="election-action-note">Students can see this as an upcoming election. Click Activate voting when the start time arrives.</p>
+                    <?php else: ?>
+                        <p class="election-action-note">The scheduled start time has arrived. Click Activate voting to open the ballot for students.</p>
+                    <?php endif; ?>
+                <?php elseif ($election['status'] === 'active'): ?>
+                    <p class="election-action-note">Voting is active until <?php echo htmlspecialchars($election['ends_at'], ENT_QUOTES, 'UTF-8'); ?>.</p>
+                <?php endif; ?>
                 <?php if ($election['results_published']): ?><a class="button" href="results.php?election_id=<?php echo (int) $election['id']; ?>">View published results</a><?php endif; ?>
+
+                <?php
+                $hasProtectedHistory = (int) $election['turnout'] > 0
+                    || (int) $election['ballot_count'] > 0
+                    || (int) $election['results_published'] === 1;
+                ?>
+                <?php if ($hasProtectedHistory): ?>
+                    <form method="POST" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="hidden" name="action" value="delete_election">
+                        <input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
+                        <button class="danger" type="submit" disabled aria-disabled="true" aria-label="Deletion blocked for <?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?>">Delete</button>
+                    </form>
+                    <p class="muted">This election has voting records or published results and cannot be permanently deleted. Close voting if it is still active; preserve the election history.</p>
+                <?php else: ?>
+                    <?php
+                    $deleteConfirmation = 'Delete election "' . $election['title'] . '"? This permanently removes '
+                        . (int) $election['position_count'] . ' position(s), '
+                        . (int) $election['candidate_count'] . ' candidate(s), '
+                        . (int) $election['application_count'] . ' application(s), and its eligibility records. '
+                        . 'Election notifications will be retained without an election link. Audit history will be preserved. This cannot be undone.';
+                    ?>
+                    <form method="POST" class="inline-form" data-confirm="<?php echo htmlspecialchars($deleteConfirmation, ENT_QUOTES, 'UTF-8'); ?>" onsubmit="if (!confirm(this.dataset.confirm)) return false; this.querySelector('button[type=submit]').disabled = true; this.querySelector('button[type=submit]').textContent = 'Deleting...';">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="hidden" name="action" value="delete_election">
+                        <input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
+                        <button class="danger" type="submit" aria-label="Delete <?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?>">Delete</button>
+                    </form>
+                <?php endif; ?>
 
                 <?php if ($election['editable']): ?>
                     <form method="POST" class="row">
@@ -1215,13 +1557,53 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         <label>Description</label><textarea name="description"><?php echo htmlspecialchars($election['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                         <button type="submit">Save election details</button>
                     </form>
+                <?php endif; ?>
+                <?php endif; ?>
 
+                <?php if ($activeNavigation === 'positions' && $election['editable']): ?>
                     <form method="POST" class="inline-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="action" value="add_position"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
-                        <label>Add position</label><input name="name" maxlength="100" required><button type="submit">Add position</button>
+                        <h4>Add a position</h4>
+                        <div class="grid">
+                            <div><label>Position name</label><input name="name" maxlength="100" required placeholder="For example: President"></div>
+                            <div><label>Description for applicants</label><textarea name="description" maxlength="10000"></textarea></div>
+                            <div><label>Eligibility requirements</label><textarea name="eligibility_requirements" maxlength="10000" placeholder="Leave blank if any verified student may apply."></textarea></div>
+                        </div>
+                        <button type="submit">Add position</button>
                     </form>
 
+                    <?php foreach ($election['positions'] as $position): ?>
+                        <form method="POST" class="row">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="action" value="manage_position">
+                            <input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
+                            <input type="hidden" name="position_id" value="<?php echo (int) $position['id']; ?>">
+                            <h4><?php echo htmlspecialchars($position['name'], ENT_QUOTES, 'UTF-8'); ?> — Position settings</h4>
+                            <p class="muted"><?php echo (int) $position['application_count']; ?> application(s), <?php echo (int) $position['pending_application_count']; ?> pending.</p>
+                            <div class="grid">
+                                <div><label>Position name</label><input name="name" maxlength="100" required value="<?php echo htmlspecialchars($position['name'], ENT_QUOTES, 'UTF-8'); ?>"></div>
+                                <div><label>Description for applicants</label><textarea name="description" maxlength="10000"><?php echo htmlspecialchars($position['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea></div>
+                                <div><label>Eligibility requirements</label><textarea name="eligibility_requirements" maxlength="10000" placeholder="Leave blank if any verified student may apply."><?php echo htmlspecialchars($position['eligibility_requirements'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea></div>
+                                <div>
+                                    <label>Application status</label>
+                                    <select name="applications_open">
+                                        <option value="0" <?php echo !(int) $position['applications_open'] ? 'selected' : ''; ?>>Closed</option>
+                                        <option value="1" <?php echo (int) $position['applications_open'] ? 'selected' : ''; ?>>Open</option>
+                                    </select>
+                                </div>
+                                <div><label>Applications open from (optional)</label><input name="applications_open_at" type="datetime-local" value="<?php echo $position['applications_open_at'] ? htmlspecialchars(str_replace(' ', 'T', substr($position['applications_open_at'], 0, 16)), ENT_QUOTES, 'UTF-8') : ''; ?>"></div>
+                                <div><label>Application deadline (optional)</label><input name="applications_close_at" type="datetime-local" value="<?php echo $position['applications_close_at'] ? htmlspecialchars(str_replace(' ', 'T', substr($position['applications_close_at'], 0, 16)), ENT_QUOTES, 'UTF-8') : ''; ?>"></div>
+                            </div>
+                            <p class="muted">The application deadline is separate from the election voting start and end times. Leave dates blank for no time restriction beyond the Open/Closed setting.</p>
+                            <button type="submit">Save position and application settings</button>
+                        </form>
+                    <?php endforeach; ?>
+                <?php elseif ($activeNavigation === 'positions'): ?>
+                    <p class="muted">This election is locked; its positions cannot be changed.</p>
+                <?php endif; ?>
+
+                <?php if ($activeNavigation === 'candidates'): ?>
                     <form method="POST" enctype="multipart/form-data" class="row">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>">
                         <input type="hidden" name="action" value="add_candidate"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
@@ -1234,8 +1616,6 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         <label>Manifesto</label><textarea name="manifesto"></textarea>
                         <button type="submit">Add candidate</button>
                     </form>
-                <?php endif; ?>
-
                 <?php foreach ($election['candidates'] as $candidate): ?>
                     <div class="candidate">
                         <?php if (!empty($candidate['photo_path'])): ?><img src="<?php echo htmlspecialchars($candidate['photo_path'], ENT_QUOTES, 'UTF-8'); ?>" alt="Candidate photo"><?php endif; ?>
@@ -1269,6 +1649,7 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         'election_q' => $electionSearch,
                         'election_status' => $electionStatus,
                         'candidate_q' => $candidateSearch,
+                        'candidate_status' => $candidateStatus,
                         'candidate_position' => $candidatePositionId,
                         'election_page' => $electionPage,
                         'candidate_page' => $candidatePageOptions
@@ -1289,36 +1670,36 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         </nav>
                     </div>
                 <?php endif; ?>
+                <?php endif; ?>
 
-                <?php if ($election['status'] === 'draft'): ?>
+
+                <?php if ($activeNavigation === 'voting' && $election['status'] === 'draft'): ?>
                     <form method="POST" class="inline-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="set_election_status"><input type="hidden" name="status" value="scheduled"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
-                        <button type="submit">Schedule election</button>
+                        <button type="submit" <?php echo $election['can_schedule'] ? '' : 'disabled aria-disabled="true"'; ?>>Schedule election</button>
                     </form>
-                <?php elseif ($election['status'] === 'scheduled'): ?>
+                <?php elseif ($activeNavigation === 'voting' && $election['status'] === 'scheduled'): ?>
                     <form method="POST" class="inline-form">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="set_election_status"><input type="hidden" name="status" value="active"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
-                        <button type="submit">Activate when window opens</button>
+                        <button type="submit">Activate voting</button>
                     </form>
                     <form method="POST" class="inline-form" onsubmit="return confirm('Close this election? Voting will stop immediately.');">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="set_election_status"><input type="hidden" name="status" value="closed"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
                         <button class="danger" type="submit">Close election</button>
                     </form>
-                <?php elseif ($election['status'] === 'active'): ?>
+                <?php elseif ($activeNavigation === 'voting' && $election['status'] === 'active'): ?>
                     <form method="POST" class="inline-form" onsubmit="return confirm('Close voting for this election now?');">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="set_election_status"><input type="hidden" name="status" value="closed"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
                         <button class="danger" type="submit">Close voting</button>
                     </form>
                 <?php endif; ?>
 
-                <?php if (!$election['results_published'] && strtotime($election['ends_at']) <= time()): ?>
-                    <form method="POST" class="inline-form" onsubmit="return confirm('Publish final results? This cannot be undone.');">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8'); ?>"><input type="hidden" name="action" value="set_election_status"><input type="hidden" name="status" value="publish"><input type="hidden" name="election_id" value="<?php echo (int) $election['id']; ?>">
-                        <button type="submit">Publish results</button>
-                    </form>
-                <?php endif; ?>
             </article>
         <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($activeNavigation === 'elections'): ?>
         <?php if ($electionCount > 0): ?>
             <?php
             $electionFirst = $electionOffset + 1;
@@ -1345,7 +1726,9 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
             </div>
         <?php endif; ?>
     </section>
+    <?php endif; ?>
 
+    <?php if ($activeNavigation === 'audit'): ?>
     <section id="audit-logs">
         <h2>Audit log</h2>
         <?php $auditRows = $conn->query(
@@ -1360,7 +1743,9 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
             </div>
         <?php endforeach; ?>
     </section>
+    <?php endif; ?>
 
+    <?php if ($activeNavigation === 'settings'): ?>
     <section id="settings">
         <h2>Administrator settings</h2>
         <p class="muted">Change your password. Your current password is required to confirm this update.</p>
@@ -1373,6 +1758,7 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
             <div style="align-self:end"><button type="submit">Change password</button></div>
         </form>
     </section>
+    <?php endif; ?>
 </main>
 <?php renderAuthenticatedNavigationEnd(); ?>
 </body>

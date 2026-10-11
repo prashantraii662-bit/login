@@ -115,10 +115,13 @@ $stmt->close();
 $activeElections = [];
 $upcomingElections = [];
 $completedElections = [];
+$draftElections = [];
 foreach ($elections as $election) {
     $startsAt = strtotime($election['starts_at']);
     $endsAt = strtotime($election['ends_at']);
-    if ($election['status'] === 'active' && $startsAt <= time() && $endsAt >= time()) {
+    if ($election['status'] === 'draft') {
+        $draftElections[] = $election;
+    } elseif ($election['status'] === 'active' && $startsAt <= time() && $endsAt >= time()) {
         $activeElections[] = $election;
     } elseif ($election['status'] === 'scheduled' && $startsAt > time()) {
         $upcomingElections[] = $election;
@@ -170,7 +173,7 @@ if (!in_array($activeNavigation, ['dashboard', 'elections', 'candidates', 'vote'
 }
 $navigationTitles = [
     'dashboard' => ['Student Dashboard', 'Your elections, participation, and account at a glance.'],
-    'elections' => ['Elections', 'Browse upcoming, active, and completed college elections.'],
+    'elections' => ['Elections', 'Browse elections in preparation, upcoming, active, and completed.'],
     'candidates' => ['Candidates', 'Review candidates and manifestos before making your choice.'],
     'vote' => ['Cast Vote', 'Select your choices for an active election.'],
     'notifications' => ['Notifications', 'Election updates and important account notices.'],
@@ -245,13 +248,14 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
 
     <?php
     $sections = [
+        'In preparation' => $draftElections,
         'Active elections' => $activeElections,
         'Upcoming elections' => $upcomingElections,
         'Completed elections' => $completedElections
     ];
     foreach ($sections as $heading => $items):
     ?>
-        <section<?php echo $heading === 'Active elections' ? ' id="elections"' : ''; ?>>
+        <section<?php echo $heading === 'In preparation' ? ' id="elections"' : ''; ?>>
             <h2><?php echo htmlspecialchars($heading, ENT_QUOTES, 'UTF-8'); ?></h2>
             <?php if (!$items): ?><p class="muted">No elections in this category.</p><?php endif; ?>
             <div class="grid">
@@ -260,6 +264,8 @@ renderAuthenticatedNavigation($navigationTitles[$activeNavigation][0], $navigati
                         <h3><?php echo htmlspecialchars($election['title'], ENT_QUOTES, 'UTF-8'); ?></h3>
                         <p><?php echo nl2br(htmlspecialchars($election['description'] ?? '', ENT_QUOTES, 'UTF-8')); ?></p>
                         <p class="muted">Opens: <?php echo htmlspecialchars($election['starts_at'], ENT_QUOTES, 'UTF-8'); ?><br>Closes: <?php echo htmlspecialchars($election['ends_at'], ENT_QUOTES, 'UTF-8'); ?><br>Status: <?php echo htmlspecialchars($election['status'], ENT_QUOTES, 'UTF-8'); ?></p>
+                        <?php if ($election['status'] === 'draft'): ?><p class="notice">This election is being prepared and is not open for voting.</p><?php endif; ?>
+                        <a class="button" href="election_positions.php?election_id=<?php echo (int) $election['id']; ?>">View positions</a>
                         <?php if (in_array($election['status'], ['scheduled', 'active'], true) || $election['results_published']): ?><a class="button" href="candidates.php?election_id=<?php echo (int) $election['id']; ?>">View candidates</a><?php endif; ?>
                         <?php if ($heading === 'Active elections' && !$election['has_voted']): ?><a class="button" href="vote.php?election_id=<?php echo (int) $election['id']; ?>">Vote</a><?php endif; ?>
                         <?php if ($election['has_voted']): ?><p class="muted">Ballot submitted for this election.</p><?php endif; ?>
